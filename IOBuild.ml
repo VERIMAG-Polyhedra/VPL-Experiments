@@ -46,6 +46,16 @@ let rec(range : int -> int -> int list)
 	= fun i j->
 	if i >= j then [] else i :: (range (i+1) j)
 
+(** sublist l i j returns l[i:j] (j exluded) *)
+let rec(sublist : 'a list -> int -> int -> 'a list)
+	= fun l i j->
+	match (l,i,j) with
+	| ([],_,_) -> []
+	| (_,_,0) -> []
+	| (p :: tail,_,_) -> if i > 0
+	then sublist tail (i-1) (j-1)
+	else p :: (sublist tail i (j-1))
+
 let get_vars : int -> string list
 	= fun dim ->
 	List.map
@@ -65,7 +75,7 @@ let cstr_to_cond : int -> Q.t list * cmp -> Cabs.expression
 			Cabs.BINARY (Cabs.ADD, cstr, prod)
 			)
 		(Cabs.CONSTANT (CONST_INT "0"))
-		coeffs
+		(sublist coeffs 0 dim)
 		(get_vars dim)
 	and cste = q_to_constant (List.nth coeffs dim)
 	and op = cmp_to_cabs cmp_op in
@@ -78,3 +88,8 @@ let to_cond : t -> Cabs.expression
 			Cabs.BINARY (Cabs.AND, cond, cstr_to_cond d.dim coeffs))
 		(cstr_to_cond d.dim (List.hd d.coeffs))
 		(List.tl d.coeffs)
+
+let get_var_id : string -> int
+	= fun s ->
+	String.sub s 3 ((String.length s)-3)
+	|> int_of_string

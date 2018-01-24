@@ -3,6 +3,29 @@
 	Each operator has a dedicated timer.
 *)
 
+open IOBuild
+
+(** Type for variables during the parsing process. *)
+type variable = string
+
+let variables : variable list ref = ref []
+
+let add_variable : variable -> unit
+	= fun var ->
+	variables := !variables @ [var]
+
+(** Type for abstract states. *)
+type state =
+	| Top
+	| Bot
+	| Name of string
+
+let state_to_string : state -> string
+	= function
+	| Top -> "top"
+	| Bot -> "bot"
+	| Name name -> name
+
 (**
 	The type for an abstract domain module.
 	Operators rely on the expression type {!type:Cabs.expression}, which is an AST for C expressions.
@@ -58,21 +81,6 @@ module type Domain = sig
 	val itvize : t ->  Cabs.expression -> Interval.t
 end
 
-(** Type for variables during the parsing process. *)
-type variable = string
-
-(** Type for abstract states. *)
-type state =
-	| Top
-	| Bot
-	| Name of string
-
-let state_to_string : state -> string
-	= function
-	| Top -> "top"
-	| Bot -> "bot"
-	| Name name -> name
-
 (**
 	Folder that contains polyhedron files.
 	The [load] operator will look for files in this folder.
@@ -116,11 +124,36 @@ let rec expression_to_string : Cabs.expression -> string
 	| _ -> Pervasives.invalid_arg "expression_to_string"
 	)
 
+(* For XML *)
+let add_tab : int -> string -> string
+	= fun n s ->
+	let str_tab = String.make n '\t' in
+	List.fold_left
+		(fun res i -> let c = String.get s i in
+			if c = '\n'
+			then res ^ "\n" ^ str_tab
+			else res ^ (String.make 1 c))
+		str_tab
+		(range 0 (String.length s))
+
+let mark : string -> (string * string) option -> string -> string
+	= fun head opt content ->
+	match opt with
+	| None ->
+		Printf.sprintf "<%s>%s</%s>"
+			head (add_tab 1 content) head
+	| Some (name, value) ->
+		Printf.sprintf "<%s %s=\"%s\">%s</%s>"
+			head name value (add_tab 1 content) head
+
 (**
 	This functor takes an abstract domain and provides a function [run] for running the domain on a trace.
 *)
 module Run_Domain (D : Domain) = struct
 
+	(**
+		Defines a timer for some operators.
+	*)
 	module Timing = struct
 		type t = {
 		join : Z.t;
@@ -267,10 +300,10 @@ module Run_Domain (D : Domain) = struct
 	end
 
 	(** Map indexed by strings. *)
-	module MapV = Map.Make(struct type t = string let compare = Pervasives.compare end)
+	module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
 
 	(* Map associating abstract values to their name. *)
-	let mapVal : D.t MapV.t ref = ref MapV.empty
+	let mapVal : D.t MapS.t ref = ref MapS.empty
 
 	(**
 		Returns the abstract value currently assoaciated to the given name.
@@ -279,13 +312,13 @@ module Run_Domain (D : Domain) = struct
 	let get : string -> D.t
 		= fun s ->
 		try
-			MapV.find s !mapVal
+			MapS.find s !mapVal
 		with Not_found -> Pervasives.invalid_arg (Printf.sprintf "Run_Domain.get %s : %s" D.name s)
 
 	(** Associates a name and an abstract value in map !{!val:mapVal}. *)
 	let set : D.t -> string -> unit
 		= fun state name ->
-		mapVal := MapV.add name state !mapVal
+		mapVal := MapS.add name state !mapVal
 
 	let value : state -> D.t
 		= function
@@ -341,6 +374,77 @@ module Run_Domain (D : Domain) = struct
 			Timing.record Timing.Minimize t_beg t_end
 	end
 
+	let load : string -> Cabs.expression
+		= let rec(substring : string -> int -> string)
+			= fun s i ->
+			(String.sub s i ((String.length s) - i))
+		in
+		let is_the_poly : string -> string -> bool
+			= fun id s ->
+			try
+				let ri = String.rindex s '_' in
+				let id_s = substring s (ri+1) in
+				String.equal id id_s
+			with Not_found | Invalid_argument _ -> false
+		in
+		(* Replaces variable names in the condition by that of [variables] in the right order. *)
+		let rec replace_variables : Cabs.expression -> Cabs.expression
+			= Cabs.(function
+			| CONSTANT _ as c-> c
+			| VARIABLE v -> let id = IOBuild.get_var_id v in
+				if id < List.length !variables
+				then VARIABLE (List.nth !variables id)
+				else VARIABLE v
+			| UNARY (op, e) -> UNARY (op, replace_variables e)
+			| BINARY (op, e1, e2) -> BINARY (op, replace_variables e1, replace_variables e2)
+			| _ -> Pervasives.invalid_arg "replace_variables"
+			)
+		in
+		fun file_name ->
+		Printf.sprintf "Loading file %s from folder %s"
+			file_name !folder
+			|> print_endline ;
+		let ri = String.rindex file_name '.' in
+		let id = substring file_name (ri+1) in
+		let name = String.sub file_name 0 ri in
+		let file = Printf.sprintf "%s/%s.vpl" !folder name in
+		let in_ch = Pervasives.open_in file in
+		let poly = ref []
+		and register = ref false in
+		(* Skip polyhedron name *)
+		try
+			while true do
+				let s = Pervasives.input_line in_ch in
+				if is_the_poly id s
+				then begin
+					poly := [file_name];
+					register := true;
+				end
+				else if !register
+					then if String.length s > 0 && String.get s 0 = 'P'
+						then Pervasives.raise End_of_file
+						else if not(String.equal s "")
+							then poly := s :: !poly
+			done;
+			Pervasives.failwith "Trace_reader.load"
+		with End_of_file -> begin
+			let s = List.rev !poly
+				|> String.concat "\n" in
+			Printf.sprintf "Parsing matrix %s" s
+				|> print_endline ;
+			let cond = FCParser.one_matrix FCLexer.token (Lexing.from_string (s ^ "\n"))
+				|> IOBuild.to_cond
+				|> replace_variables
+			in
+			Printf.sprintf "Loaded file %s" file
+				|> print_endline;
+			cond
+		end
+
+	(**
+		This modules parses C traces and performs the calls to the abstract domain.
+		The C parsing is done thanks to the FrontC library.
+	*)
 	module Stmt = struct
 
 		type t =
@@ -353,7 +457,7 @@ module Run_Domain (D : Domain) = struct
 			(*| Minkowski of name * state * (Q.t * Pol.Var.t * Q.t) list (* p1 := p2 ⊕ [x1, -1, 1 ; ... ; xn, -1, 1] *)*)
 			| Widen of string * state * state (* p1 := p2 widen p3 *)
 			| Assign of string * state * (variable * Cabs.expression) list (* p1 := [v1 := 3, v3 := v2 + 2] in p3 *)
-			| Project of string * state * variable list (* p1 := p2 |> [v1, v2] *)
+			| Project of string * state * variable list (* p1 := p2 | [v1, v2] *)
 			| Minimize of string * state (* p1 := min p2 *)
 			| Includes of state * state (* p1 includes p2 *)
 			| Itv of state * Cabs.expression
@@ -412,12 +516,7 @@ module Run_Domain (D : Domain) = struct
 			let neq = bop (<>) (<>)
 		end
 
-		module Mem = struct
-			module M = Map.Make(struct type t = string let compare = Pervasives.compare end)
-
-			type t = Value.t M.t
-
-		end
+		type mem = Value.t MapS.t
 
 		let rec is_state : Cabs.expression -> bool
 			= Cabs.(function
@@ -441,6 +540,19 @@ module Run_Domain (D : Domain) = struct
 			= Cabs.(function
 			| CALL (VARIABLE fun_name, []) when String.equal fun_name "top" -> Top
 			| CALL (VARIABLE fun_name, []) when String.equal fun_name "bot" -> Bot
+			| CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
+				let cond = load file_name in
+				Timed_Operators.guard "VPL_RESERVED" Top cond;
+				(Name "VPL_RESERVED")
+			| CALL(VARIABLE "project", args)
+				when List.length args > 0 && is_state (List.hd args)
+				&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
+				let vars = List.map
+					(function VARIABLE var -> var | _ -> invalid_arg "from_body")
+					(List.tl args)
+				in
+				Timed_Operators.project "VPL_RESERVED" (parse_state (List.hd args)) vars;
+				(Name "VPL_RESERVED")
 			| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
 				match fun_name with
 				| "meet" -> Timed_Operators.meet "VPL_RESERVED" (parse_state s1) (parse_state s2);
@@ -480,13 +592,13 @@ module Run_Domain (D : Domain) = struct
 			| _ -> Pervasives.invalid_arg "parse_computation"
 			)
 
-		let rec eval_aexpr : Mem.t -> Cabs.expression -> Value.t
+		let rec eval_aexpr : mem -> Cabs.expression -> Value.t
 			= fun mem -> Cabs.(function
 			| CONSTANT (CONST_INT c) -> Value.Int (Some (int_of_string c))
 			| CONSTANT (CONST_FLOAT c) -> Value.Float (Some (float_of_string c))
 			| VARIABLE name -> begin
 				try
-					match Mem.M.find name mem with
+					match MapS.find name mem with
 					| Value.Int (Some i) -> Value.Float (Some (float_of_int i))
 					| Value.Float (Some f) -> Value.Float (Some f)
 					| Value.Int None | Value.Float None -> Pervasives.failwith ("Variable " ^ name ^ " is used but not initialized")
@@ -509,7 +621,7 @@ module Run_Domain (D : Domain) = struct
 				end
 			)
 
-		let rec eval_bexpr : Mem.t -> Cabs.expression -> bool
+		let rec eval_bexpr : mem -> Cabs.expression -> bool
 			= fun mem -> Cabs.(function
 			| UNARY (NOT, e) -> not (eval_bexpr mem e)
 			| UNARY (_, _) -> Pervasives.failwith "eval_bexpr: Unexpected unary expression"
@@ -527,12 +639,12 @@ module Run_Domain (D : Domain) = struct
 				D.leq (parse_state e2 |> value) (parse_state e1 |> value)
 			| _ -> Pervasives.failwith "Unexpected boolean expression"
 			)
-		let update_mem : Mem.t -> variable -> Cabs.expression -> Mem.t
+		let update_mem : mem -> variable -> Cabs.expression -> mem
 			= fun mem var e ->
-			Mem.M.add var (eval_aexpr mem e) mem
+			MapS.add var (eval_aexpr mem e) mem
 
 		(** Initializes the memory with the type of variables *)
-		let init_variables : Mem.t -> Cabs.definition list -> Mem.t
+		let init_variables : mem -> Cabs.definition list -> mem
 			= fun mem defs ->
 			List.fold_left
 				(fun mem -> function
@@ -540,7 +652,7 @@ module Run_Domain (D : Domain) = struct
 						List.fold_left
 							(fun mem (name,_,_,e) ->
 							match eval_aexpr mem e with
-							| Value.Int i -> Mem.M.add name (Value.Int i) mem
+							| Value.Int i -> MapS.add name (Value.Int i) mem
 							| Value.Float _ -> Pervasives.failwith ("Variable " ^ name ^ " is declared as int but is given a float value")
 							)
 							mem names
@@ -548,37 +660,51 @@ module Run_Domain (D : Domain) = struct
 						List.fold_left
 							(fun mem (name,_,_,e) ->
 							match eval_aexpr mem e with
-							| Value.Int (Some i) -> Mem.M.add name (Value.Float (Some (float_of_int i))) mem
-							| Value.Int None -> Mem.M.add name (Value.Float None) mem
-							| Value.Float f -> Mem.M.add name (Value.Float f) mem
+							| Value.Int (Some i) -> MapS.add name (Value.Float (Some (float_of_int i))) mem
+							| Value.Int None -> MapS.add name (Value.Float None) mem
+							| Value.Float f -> MapS.add name (Value.Float f) mem
 							)
 							mem names
 					| Cabs.DECDEF(Cabs.NAMED_TYPE "abs_value", _, names) -> begin
 							List.iter (fun (name, _, _, _) -> set D.top name) names;
 							mem
 						end
+					| Cabs.DECDEF(Cabs.NAMED_TYPE "var", _, names) -> begin
+							List.iter (fun (name, _, _, _) -> add_variable name) names;
+							mem
+						end
 					| _ -> mem
 				)
 				mem defs
 
-		let rec from_body : Mem.t -> Cabs.body -> Mem.t * t
+		let rec from_body : mem -> Cabs.body -> mem * t
 			= fun mem (defs, stmt) ->
 			let mem = init_variables mem defs in
 			Cabs.(match stmt with
 			| NOP -> (mem, Skip)
-			| COMPUTATION (BINARY (ASSIGN, (VARIABLE var), CALL(VARIABLE fun_name, [st1; st2])))
+			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st1; st2])))
 				when is_state st1 && is_state st2 -> begin
 				match fun_name with
-				| "meet" -> (mem, Meet (var, parse_state st1, parse_state st2))
-				| "join" -> (mem, Join (var, parse_state st1, parse_state st2))
-				| "widen" -> (mem, Widen (var, parse_state st1, parse_state st2))
+				| "meet" -> (mem, Meet (res_name, parse_state st1, parse_state st2))
+				| "join" -> (mem, Join (res_name, parse_state st1, parse_state st2))
+				| "widen" -> (mem, Widen (res_name, parse_state st1, parse_state st2))
 				| _ -> Pervasives.failwith "Unexpected function call with two abstract states"
 				end
-			| COMPUTATION (BINARY (ASSIGN, (VARIABLE var), CALL(VARIABLE fun_name, [st; e])))
+			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]))) ->
+				(mem, Load (res_name, file_name))
+			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "project", args)))
+				when List.length args > 0 && is_state (List.hd args)
+				&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
+				let vars = List.map
+					(function VARIABLE var -> var | _ -> invalid_arg "from_body")
+					(List.tl args)
+				in
+				(mem, Project (res_name, parse_state (List.hd args), vars))
+			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st; e])))
 				when is_state st && not (is_state e) -> begin
 				match fun_name with
-				| "guard" -> (mem, Guard (var, parse_state st, e))
-				| "assign" -> (mem, Assign(var, parse_state st, [parse_assign e]))
+				| "guard" -> (mem, Guard (res_name, parse_state st, e))
+				| "assign" -> (mem, Assign(res_name, parse_state st, [parse_assign e]))
 				| _ -> Pervasives.failwith "Unexpected function call with one abstract state"
 				end
 			| COMPUTATION e when is_computation e ->
@@ -611,22 +737,22 @@ module Run_Domain (D : Domain) = struct
 				= fun level ->
 				function
 				| Skip -> Printf.sprintf "%sskip"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 				| IsBottom s ->
 					Printf.sprintf "%sisBottom(%s)"
-						(Vpl.Misc.string_repeat "\t" level)
+						(string_repeat "\t" level)
 						(state_to_string s)
 				| Load(name, file_name) ->
 					Printf.sprintf "%s%s = load(%s)"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 					name file_name
 				| Meet (name, s1, s2) ->
 					Printf.sprintf "%s%s = meet(%s, %s)"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 					name (state_to_string s1) (state_to_string s2)
 				| Guard (name, s, e) ->
 					Printf.sprintf "%s%s = guard(%s, %s)"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 					name (state_to_string s)
 					(expression_to_string e)
 				| Sequence (s1, s2) ->
@@ -635,22 +761,22 @@ module Run_Domain (D : Domain) = struct
 						(statement_to_string_rec level s2)
 				| If (e, s1, s2) ->
 					Printf.sprintf "%sif (%s){\n%s\n%s}\n%selse{\n%s\n%s}"
-						(Vpl.Misc.string_repeat "\t" level)
+						(string_repeat "\t" level)
 						(expression_to_string e)
 						(statement_to_string_rec (level + 1) s1)
-						(Vpl.Misc.string_repeat "\t" level)
-						(Vpl.Misc.string_repeat "\t" level)
+						(string_repeat "\t" level)
+						(string_repeat "\t" level)
 						(statement_to_string_rec (level + 1) s2)
-						(Vpl.Misc.string_repeat "\t" level)
+						(string_repeat "\t" level)
 				| While (e, s) ->
 					Printf.sprintf "%swhile(%s){\n%s\n%s}"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 					(expression_to_string e)
 					(statement_to_string_rec (level + 1) s)
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 				| CAssign (var, e) ->
 					Printf.sprintf "%s%s = %s"
-					(Vpl.Misc.string_repeat "\t" level)
+					(string_repeat "\t" level)
 					var
 					(expression_to_string e)
 				| _ -> ""
@@ -660,11 +786,7 @@ module Run_Domain (D : Domain) = struct
 
 	end
 
-	(*
-
-	*)
-
-	let rec run : Stmt.Mem.t -> Stmt.t -> Stmt.Mem.t
+	let rec run : Stmt.mem -> Stmt.t -> Stmt.mem
 		= fun mem -> Stmt.(function
 		| IsBottom p -> begin
 			let _ = D.is_bottom (value p) in ()
@@ -674,9 +796,10 @@ module Run_Domain (D : Domain) = struct
 			let _ = D.leq (value p2) (value p1) in ()
 			end;
 			mem
-		(*| Load (p,s) ->
-			let cond = load s |> Cond.of_cstrs in
-			stmt (MeetCond (p, Top, cond))*)
+		| Load (p,s) ->
+			let cond = load s in
+			Timed_Operators.guard p Top cond;
+			mem
 		| Meet (p1,p2,p3) ->
 			Timed_Operators.meet p1 p2 p3;
 			mem
@@ -726,6 +849,6 @@ module Run_Domain (D : Domain) = struct
 
 	let print_last : unit -> unit
 		= fun () ->
-		let (_,value) = MapV.max_binding !mapVal in
+		let (_,value) = MapS.max_binding !mapVal in
 		D.print value
 end
