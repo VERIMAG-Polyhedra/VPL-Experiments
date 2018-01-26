@@ -17,6 +17,6 @@ sanity:
 	ocamlfind query apron
 
 exp : sanity
-	$(OCB) -package oclock -package apron -package apron.polkaMPQ -package vpl -package FrontC Test_parse.native
+	$(OCB) -package oclock -package apron -package apron.polkaMPQ -package vpl -package FrontC Run_VPL.native
 
 .PHONY: clean exp sanity

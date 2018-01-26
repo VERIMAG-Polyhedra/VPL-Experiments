@@ -436,7 +436,8 @@ module Run_Domain (D : Domain) = struct
 				|> IOBuild.to_cond
 				|> replace_variables
 			in
-			Printf.sprintf "Loaded file %s" file
+			Printf.sprintf "Loaded file %s, obtained %s"
+				file (expression_to_string cond)
 				|> print_endline;
 			cond
 		end
@@ -845,10 +846,29 @@ module Run_Domain (D : Domain) = struct
 			mem
 		| _ -> Pervasives.invalid_arg (Printf.sprintf "Run_Domain.stmt %s" D.name))
 
-	exception End_of_line
-
 	let print_last : unit -> unit
 		= fun () ->
 		let (_,value) = MapS.max_binding !mapVal in
 		D.print value
+
+	let exec : string -> unit
+		= fun file_name ->
+		(* Parsing file *)
+		let defs = match Frontc.parse_file file_name Pervasives.stdout with
+		| Frontc.PARSING_ERROR ->
+		 	Pervasives.failwith "FrontC Parsing Error"
+		| Frontc.PARSING_OK defs -> defs
+		in
+		let main_fun = List.find (function
+			| Cabs.FUNDEF((_,_,(name,_,_,_)), body) when String.equal name "main" -> true
+			| _ -> false)
+			defs
+		in
+		match main_fun with
+		| Cabs.FUNDEF((_,_,(name,_,_,_)), body) ->
+			let (mem,stmt) = Stmt.from_body MapS.empty body in
+			let _ = run mem stmt in
+			()
+		| _ -> ()
+
 end
