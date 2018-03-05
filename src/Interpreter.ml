@@ -126,33 +126,6 @@ module Lift (D : DirtyDomain.Type) = struct
 				|> print_endline;
 			cond
 		end
-(*
-	(**
-		This modules parses C traces and performs the calls to the abstract domain.
-		The C parsing is done thanks to the FrontC library.
-	*)
-	module Stmt = struct
-
-		type t =
-			| Skip
-			| IsBottom of state
-			| Load of string * string
-			| Meet of string * state * state (* p1 := p2 && p3 *)
-			| Guard of string * state * Cabs.expression (* p1 := p2 && cond *)
-			| Join of string * state * state (* p1 := p2 || p3 *)
-			(*| Minkowski of name * state * (Q.t * Pol.Var.t * Q.t) list (* p1 := p2 ⊕ [x1, -1, 1 ; ... ; xn, -1, 1] *)*)
-			| Widen of string * state * state (* p1 := p2 widen p3 *)
-			| Assign of string * state * (variable * Cabs.expression) list (* p1 := [v1 := 3, v3 := v2 + 2] in p3 *)
-			| Project of string * state * variable list (* p1 := p2 | [v1, v2] *)
-			| Minimize of string * state (* p1 := min p2 *)
-			| Includes of state * state (* p1 includes p2 *)
-			| Itv of state * Cabs.expression
-			| GetLowerBound of state * Cabs.expression
-			| GetUpperBound of state * Cabs.expression
-			| Sequence of t * t
-			| If of Cabs.expression * t * t (* if(cond){then-stmt}else{else-stmt} *)
-			| While of Cabs.expression * t
-			| CAssign of variable * Cabs.expression (* A C assignment*)
 
 		module Value = struct
 			type t =
@@ -202,34 +175,31 @@ module Lift (D : DirtyDomain.Type) = struct
 			let neq = bop (<>) (<>)
 		end
 
+        module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
+
 		type mem = Value.t MapS.t
 
-		let rec is_state : Cabs.expression -> bool
+        let rec is_state : Cabs.expression -> bool
 			= Cabs.(function
 			| CALL (VARIABLE fun_name, [])
-				when String.equal fun_name "bot" || String.equal fun_name "top" ->
-				true
+				when String.equal fun_name "bot" || String.equal fun_name "top" -> true
 			| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
 				match fun_name with
 				| "meet" | "widen" | "join" -> true
 				| _ -> false
 				end
 			| CALL (VARIABLE "guard", [s1;e]) when is_state s1 -> true
-			| VARIABLE name -> begin
-				try get name ; true
-				with Invalid_argument _  -> false
-				end
+			| VARIABLE name -> D.is_bound name
 			| e -> false
 			)
 
-		let rec parse_state : Cabs.expression -> state
-			= Cabs.(function
-			| CALL (VARIABLE fun_name, []) when String.equal fun_name "top" -> Top
-			| CALL (VARIABLE fun_name, []) when String.equal fun_name "bot" -> Bot
+		let rec parse_state : Cabs.expression -> D.t
+			= Cabs.(D.(function
+			| CALL (VARIABLE fun_name, []) when String.equal fun_name "top" -> top
+			| CALL (VARIABLE fun_name, []) when String.equal fun_name "bot" -> bottom
 			| CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
 				let cond = load file_name in
-				Timed_Operators.guard "VPL_RESERVED" Top cond;
-				(Name "VPL_RESERVED")
+                assume "VPL_RESERVED" cond D.top
 			| CALL(VARIABLE "project", args)
 				when List.length args > 0 && is_state (List.hd args)
 				&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
@@ -237,26 +207,21 @@ module Lift (D : DirtyDomain.Type) = struct
 					(function VARIABLE var -> var | _ -> invalid_arg "from_body")
 					(List.tl args)
 				in
-				Timed_Operators.project "VPL_RESERVED" (parse_state (List.hd args)) vars;
-				(Name "VPL_RESERVED")
+				project "VPL_RESERVED" vars (parse_state (List.hd args))
 			| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
 				match fun_name with
-				| "meet" -> Timed_Operators.meet "VPL_RESERVED" (parse_state s1) (parse_state s2);
-					(Name "VPL_RESERVED")
-				| "widen" -> Timed_Operators.widen "VPL_RESERVED" (parse_state s1) (parse_state s2);
-					(Name "VPL_RESERVED")
-				| "join" -> Timed_Operators.join "VPL_RESERVED" (parse_state s1) (parse_state s2);
-					(Name "VPL_RESERVED")
+				| "meet" -> meet "VPL_RESERVED" (parse_state s1) (parse_state s2)
+				| "widen" -> widen "VPL_RESERVED" (parse_state s1) (parse_state s2)
+				| "join" -> join "VPL_RESERVED" (parse_state s1) (parse_state s2)
 				| _ -> Pervasives.invalid_arg "parse_state"
 				end
 			| CALL (VARIABLE "guard", [s1;e]) when is_state s1 ->
-				Timed_Operators.guard "VPL_RESERVED" (parse_state s1) e;
-				(Name "VPL_RESERVED")
+				assume "VPL_RESERVED" e (parse_state s1)
 			| VARIABLE name -> Name name
 			| _ -> Pervasives.invalid_arg "parse_state"
-			)
+			))
 
-		let parse_assign : Cabs.expression -> (variable * Cabs.expression)
+        let parse_assign : Cabs.expression -> (Domain.variable * Cabs.expression)
 			= Cabs.(function
 			| BINARY (ASSIGN, (VARIABLE var), e) -> (var, e)
 			| _ -> Pervasives.failwith "Unexpected assignment"
@@ -270,7 +235,7 @@ module Lift (D : DirtyDomain.Type) = struct
 			| _ -> false
 			)
 
-		let parse_computation : Cabs.expression -> variable * Cabs.expression
+		let parse_computation : Cabs.expression -> Domain.variable * Cabs.expression
 			= Cabs.(function
 			| BINARY (ASSIGN, VARIABLE var, e) -> (var, e)
 			| UNARY (POSINCR, VARIABLE var) -> (var, BINARY (ADD, VARIABLE var, CONSTANT (CONST_INT "1")))
@@ -321,15 +286,18 @@ module Lift (D : DirtyDomain.Type) = struct
 			| BINARY (GT, e1, e2) -> Value.gt (eval_aexpr mem e1) (eval_aexpr mem e2)
 			| BINARY (EQ, e1, e2) -> Value.eq (eval_aexpr mem e1) (eval_aexpr mem e2)
 			| BINARY (NE, e1, e2) -> Value.neq (eval_aexpr mem e1) (eval_aexpr mem e2)
-			| CALL (VARIABLE function_name, [e1 ; e2]) when is_state e1 && is_state e2 ->
-				D.leq (parse_state e2 |> value) (parse_state e1 |> value)
+			| CALL (VARIABLE "includes", [e1 ; e2]) when is_state e1 && is_state e2 ->
+				D.leq (parse_state e2) (parse_state e1)
 			| _ -> Pervasives.failwith "Unexpected boolean expression"
 			)
-		let update_mem : mem -> variable -> Cabs.expression -> mem
+
+		let update_mem : mem -> Domain.variable -> Cabs.expression -> mem
 			= fun mem var e ->
 			MapS.add var (eval_aexpr mem e) mem
 
-		(** Initializes the memory with the type of variables *)
+        let top_expr : Cabs.expression = Cabs.(BINARY (LE, CONSTANT (CONST_INT "0"), CONSTANT (CONST_INT "1")))
+
+        (** Initializes the memory with the type of variables *)
 		let init_variables : mem -> Cabs.definition list -> mem
 			= fun mem defs ->
 			List.fold_left
@@ -352,7 +320,7 @@ module Lift (D : DirtyDomain.Type) = struct
 							)
 							mem names
 					| Cabs.DECDEF(Cabs.NAMED_TYPE "abs_value", _, names) -> begin
-							List.iter (fun (name, _, _, _) -> set D.top name) names;
+							List.iter (fun (name, _, _, _) -> let _ = D.assume name top_expr D.top in ()) names;
 							mem
 						end
 					| Cabs.DECDEF(Cabs.NAMED_TYPE "var", _, names) -> begin
@@ -363,21 +331,25 @@ module Lift (D : DirtyDomain.Type) = struct
 				)
 				mem defs
 
-		let rec from_body : mem -> Cabs.body -> mem * t
+        let rec run : mem -> Cabs.body -> mem
 			= fun mem (defs, stmt) ->
 			let mem = init_variables mem defs in
 			Cabs.(match stmt with
-			| NOP -> (mem, Skip)
+			| NOP -> mem
 			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st1; st2])))
 				when is_state st1 && is_state st2 -> begin
 				match fun_name with
-				| "meet" -> (mem, Meet (res_name, parse_state st1, parse_state st2))
-				| "join" -> (mem, Join (res_name, parse_state st1, parse_state st2))
-				| "widen" -> (mem, Widen (res_name, parse_state st1, parse_state st2))
+				| "meet" -> begin
+                    let _ = D.meet res_name (parse_state st1) (parse_state st2) in mem
+                end
+				| "join" -> let _ = D.join res_name (parse_state st1) (parse_state st2) in mem
+				| "widen" -> let _ = D.widen res_name (parse_state st1) (parse_state st2) in mem
 				| _ -> Pervasives.failwith "Unexpected function call with two abstract states"
 				end
 			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]))) ->
-				(mem, Load (res_name, file_name))
+				let cond = load file_name in
+                let _ = D.assume res_name cond D.top in
+                mem
 			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "project", args)))
 				when List.length args > 0 && is_state (List.hd args)
 				&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
@@ -385,175 +357,37 @@ module Lift (D : DirtyDomain.Type) = struct
 					(function VARIABLE var -> var | _ -> invalid_arg "from_body")
 					(List.tl args)
 				in
-				(mem, Project (res_name, parse_state (List.hd args), vars))
+                let _ = D.project res_name vars (parse_state (List.hd args)) in
+                mem
 			| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st; e])))
 				when is_state st && not (is_state e) -> begin
 				match fun_name with
-				| "guard" -> (mem, Guard (res_name, parse_state st, e))
-				| "assign" -> (mem, Assign(res_name, parse_state st, [parse_assign e]))
+				| "guard" -> let _ = D.assume res_name e (parse_state st) in mem
+				| "assign" -> let _ = D.assign res_name [parse_assign e] (parse_state st) in mem
 				| _ -> Pervasives.failwith "Unexpected function call with one abstract state"
 				end
 			| COMPUTATION e when is_computation e ->
 				let (var, assign) = parse_computation e in
-				(mem, CAssign (var, assign))
+                update_mem mem var assign
 			| IF (e, s1, s2) ->
-				let (mem', s1') = from_body mem ([], s1) in
-				let (mem'', s2') = from_body mem' ([], s2) in
-				(mem'', If (e, s1', s2'))
+                if eval_bexpr mem e
+                then run mem ([],s1)
+		        else run mem ([],s2)
 			| WHILE (e, s) ->
-				let (mem',s') = from_body mem ([], s) in
-				(mem', While (e, s'))
-			| BLOCK body -> from_body mem body
+                if eval_bexpr mem e
+    			then begin
+    				let mem' = run mem ([],s) in
+    				run mem' ([], WHILE (e, s))
+    			end
+    			else mem
+            | BLOCK body -> run mem body
 			| SEQUENCE (s1,s2) ->
-				let (mem', s1') = from_body mem ([], s1) in
-				let (mem'', s2') = from_body mem' ([], s2) in
-				(mem'', Sequence (s1', s2'))
+                let mem' = run mem ([],s1) in
+    			run mem' ([],s2)
 			| _ -> begin
 				Cprint.print_statement stmt;
 				Pervasives.failwith "Unexpected statement"
 				end
 			)
 
-		let statement_to_string : t -> string =
-			let rec(string_repeat : string -> int -> string)
-				= fun s i ->
-				if i = 0 then "" else String.concat "" [s ; string_repeat s (i-1)]
-			in
-			let rec statement_to_string_rec : int -> t -> string
-				= fun level ->
-				function
-				| Skip -> Printf.sprintf "%sskip"
-					(string_repeat "\t" level)
-				| IsBottom s ->
-					Printf.sprintf "%sisBottom(%s)"
-						(string_repeat "\t" level)
-						(state_to_string s)
-				| Load(name, file_name) ->
-					Printf.sprintf "%s%s = load(%s)"
-					(string_repeat "\t" level)
-					name file_name
-				| Meet (name, s1, s2) ->
-					Printf.sprintf "%s%s = meet(%s, %s)"
-					(string_repeat "\t" level)
-					name (state_to_string s1) (state_to_string s2)
-				| Guard (name, s, e) ->
-					Printf.sprintf "%s%s = guard(%s, %s)"
-					(string_repeat "\t" level)
-					name (state_to_string s)
-					(expression_to_string e)
-				| Sequence (s1, s2) ->
-					Printf.sprintf "%s;\n%s"
-						(statement_to_string_rec level s1 )
-						(statement_to_string_rec level s2)
-				| If (e, s1, s2) ->
-					Printf.sprintf "%sif (%s){\n%s\n%s}\n%selse{\n%s\n%s}"
-						(string_repeat "\t" level)
-						(expression_to_string e)
-						(statement_to_string_rec (level + 1) s1)
-						(string_repeat "\t" level)
-						(string_repeat "\t" level)
-						(statement_to_string_rec (level + 1) s2)
-						(string_repeat "\t" level)
-				| While (e, s) ->
-					Printf.sprintf "%swhile(%s){\n%s\n%s}"
-					(string_repeat "\t" level)
-					(expression_to_string e)
-					(statement_to_string_rec (level + 1) s)
-					(string_repeat "\t" level)
-				| CAssign (var, e) ->
-					Printf.sprintf "%s%s = %s"
-					(string_repeat "\t" level)
-					var
-					(expression_to_string e)
-				| _ -> ""
-			in
-			fun stmt ->
-			statement_to_string_rec 0 stmt
-
-	end
-
-	let rec run : Stmt.mem -> Stmt.t -> Stmt.mem
-		= fun mem -> Stmt.(function
-		| IsBottom p -> begin
-			let _ = D.is_bottom (value p) in ()
-			end;
-			mem
-		| Includes (p1,p2) -> begin
-			let _ = D.leq (value p2) (value p1) in ()
-			end;
-			mem
-		| Load (p,s) ->
-			let cond = load s in
-			Timed_Operators.guard p Top cond;
-			mem
-		| Meet (p1,p2,p3) ->
-			Timed_Operators.meet p1 p2 p3;
-			mem
-		| Guard (p1,p2,cond) ->
-			Timed_Operators.guard p1 p2 cond;
-			mem
-		| Join (p1,p2,p3) ->
-			Timed_Operators.join p1 p2 p3;
-			mem
-		| Widen (p1,p2,p3) ->
-			Timed_Operators.widen p1 p2 p3;
-			mem
-		| Assign(p1, p2, assigns) ->
-			Timed_Operators.assign p1 p2 assigns;
-			mem
-		| Project (p1,p2,vars) ->
-			Timed_Operators.project p1 p2 vars;
-			mem
-	    | Minimize (p1,p2) ->
-			Timed_Operators.minimize p1 p2;
-			mem
-		| Itv (p, t) -> begin
-			let _ = D.itvize (value p) t in ()
-			end;
-			mem
-		| Sequence(s1, s2) ->
-			let mem' = run mem s1 in
-			run mem' s2
-		| If (e, s1, s2) ->
-			if eval_bexpr mem e
-			then run mem s1
-			else run mem s2
-		| While (e, s) ->
-			if eval_bexpr mem e
-			then begin
-				let mem' = run mem s in
-				run mem' (While (e, s))
-			end
-			else mem
-		| CAssign (var, e) ->
-			update_mem mem var e
-		| Skip ->
-			mem
-		| _ -> Pervasives.invalid_arg (Printf.sprintf "Run_Domain.stmt %s" D.name))
-
-	let print_last : unit -> unit
-		= fun () ->
-		let (_,value) = MapS.max_binding !mapVal in
-		D.print value
-
-	let exec : string -> unit
-		= fun file_name ->
-		(* Parsing file *)
-		let defs = match Frontc.parse_file file_name Pervasives.stdout with
-		| Frontc.PARSING_ERROR ->
-		 	Pervasives.failwith "FrontC Parsing Error"
-		| Frontc.PARSING_OK defs -> defs
-		in
-		let main_fun = List.find (function
-			| Cabs.FUNDEF((_,_,(name,_,_,_)), body) when String.equal name "main" -> true
-			| _ -> false)
-			defs
-		in
-		match main_fun with
-		| Cabs.FUNDEF((_,_,(name,_,_,_)), body) ->
-			let (mem,stmt) = Stmt.from_body MapS.empty body in
-			let _ = run mem stmt in
-			()
-		| _ -> ()
-*)
 end

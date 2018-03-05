@@ -10,7 +10,10 @@ module type Type = sig
     val name : string
 
     (** Type of an abstract value. *)
-    type t
+    type t =
+        | Top
+        | Bot
+        | Name of string
 
     (** Top abstract value *)
     val top: t
@@ -49,6 +52,9 @@ module type Type = sig
 
     (** Computes an interval of the values that the given expression can reach in the given abstract value. *)
     val itvize : t ->  Cabs.expression -> Interval.t
+
+    (** Returns true if the given name is associated to an abstract value. *)
+    val is_bound : string -> bool
 end
 
 module Lift (D : Domain.Type) : Type = struct
@@ -68,6 +74,10 @@ module Lift (D : Domain.Type) : Type = struct
         try
             MapS.find s !mapVal
         with Not_found -> Pervasives.invalid_arg (Printf.sprintf "Run_Domain.get %s : %s" D.name s)
+
+    let is_bound : string -> bool
+        = fun s ->
+        MapS.mem s !mapVal
 
 	(** Associates a name and an abstract value in map !{!val:mapVal}. *)
 	let set : D.t -> string -> unit

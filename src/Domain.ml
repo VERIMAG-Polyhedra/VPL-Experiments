@@ -18,9 +18,6 @@ let state_to_string : state -> string
 	| Bot -> "bot"
 	| Name name -> name
 
-(** Map indexed by strings. *)
-module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
-
 module type Type = sig
 
 	(** Module defining an interval datatype, see {!val:itvize}. *)
