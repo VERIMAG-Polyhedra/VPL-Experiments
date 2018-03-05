@@ -1,7 +1,8 @@
 OCAMLDOC_FLAGS = -hide-warnings
+SRC = src
 OCB_FLAGS = -use-ocamlfind $(INCLUDES)
 
-OCB = ocamlbuild  $(OCB_FLAGS)
+OCB = ocamlbuild -I $(SRC) $(OCB_FLAGS)
 
 all: exp
 
@@ -17,6 +18,6 @@ sanity:
 	ocamlfind query apron
 
 exp : sanity
-	$(OCB) -package oclock -package apron -package apron.polkaMPQ -package vpl -package FrontC Run_VPL.native
+	$(OCB) -package oclock -package apron -package apron.polkaMPQ -package vpl -package FrontC Interpreter.native
 
 .PHONY: clean exp sanity
