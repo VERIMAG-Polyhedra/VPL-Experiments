@@ -1,6 +1,12 @@
 open XMLOutput
 
-module Lift (D : Domain.Type) : Domain.Type = struct
+module type Type = sig
+    include Domain.Type
+
+    val export_timings : unit -> string
+end
+
+module Lift (D : Domain.Type) : Type = struct
 
 	(**
 		Defines a timer for some operators.
@@ -90,19 +96,6 @@ module Lift (D : Domain.Type) : Domain.Type = struct
 	      = fun t ->
 	      Z.to_string t
 
-	    let to_res : unit -> string
-	      	= fun () ->
-	      	Printf.sprintf "[\"%s\", %s, %s, %s, %s, %s, %s, %s, \"%s\"],"
-	        D.name
-	        (prRealTime !t_ref.widen)
-	        (prRealTime !t_ref.assume)
-	        (prRealTime !t_ref.project)
-	        (prRealTime !t_ref.minimize)
-	        (prRealTime !t_ref.assign)
-	        (prRealTime !t_ref.join)
-	        (prRealTime (total ()))
-	        (prTime (total ()))
-
 		let time_to_xml : string -> Z.t -> string
 		    = fun s t ->
 			if Z.equal t Z.zero
@@ -143,6 +136,8 @@ module Lift (D : Domain.Type) : Domain.Type = struct
 			|> String.concat ""
 			|> mark "timings" None
 	end
+
+    let export_timings = Timing.to_xml
 
     include D
 

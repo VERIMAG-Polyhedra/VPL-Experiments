@@ -1,5 +1,5 @@
-open Interpreter;;
-open Domains;;
+(*open Interpreter;;*)
+(*open Domains;;*)
 open IOBuild;;
 open Vpl;;
 open Arg;;
@@ -69,7 +69,7 @@ module Cmd = struct
 		("-res", String (fun s -> output_file:= Some s),"<file> output file (default=None)");
 		("-debug", Unit (fun () -> debug:= true ),"Enable debug mode");
 		("-timeout", Int (fun i -> time_budget := Some i ),"Timeout value");
-		("-folder", String (fun s -> folder := s), "Folder containing polyhedra files");
+		("-folder", String (fun s -> Interpreter.folder := s), "Folder containing polyhedra files");
 		("-lp", String update_lp, "LP method (gplk | splx)");
 		("-plp", String update_plp, "PLP method (raytracing | greedy)");
 		("-scalar", String update_scalar, "Scalar type (rat | symb | float)");
@@ -126,6 +126,12 @@ module VPL = struct
 	let mapVar : Var.Positive.t M.t ref = ref M.empty
 	let next : Var.Positive.t ref = ref Var.Positive.u
 
+    let map_to_string : unit -> string
+        = fun () ->
+        Misc.list_to_string
+            (fun (name,var) -> Printf.sprintf "%s -> %s" name (Var.Positive.to_string var))
+            (M.bindings !mapVar) ";"
+
 	let rec to_term : Cabs.expression -> Term.t
 		= Cabs.(Term.(function
 		| UNARY (MINUS, e) -> Opp (to_term e)
@@ -136,16 +142,13 @@ module VPL = struct
 		| BINARY (MUL, e1, e2) -> Mul (to_term e1, to_term e2)
 		| BINARY (SUB, e1, e2) -> Add (to_term e1, Opp (to_term e2))
 		| CONSTANT (CONST_INT c) -> Cte (Scalar.Rat.of_string c)
-		| CONSTANT (CONST_FLOAT f) -> begin
-			print_endline f;
-			Cte (Scalar.Rat.of_string f)
-			end
+		| CONSTANT (CONST_FLOAT f) -> Cte (float_of_string f |> Scalar.Rat.of_float)
 		| VARIABLE var_name -> begin
 			if M.mem var_name !mapVar
 			then Var (M.find var_name !mapVar)
 			else begin
 				let value = !next in
-				M.add var_name !next !mapVar;
+				mapVar := M.add var_name !next !mapVar;
 				next := Var.Positive.next !next;
 				Var value
 			end
@@ -172,7 +175,7 @@ module VPL = struct
 
 	module D = struct
 
-		include NCDomain.NCVPL_Unit.Q
+		include NCDomain.NCVPL_Cstr.Q
 
 		module Interval = NCDomain.NCVPL_Unit.I.QInterface.Interval
 
@@ -192,14 +195,16 @@ module VPL = struct
 			l)
 
 		let project vars = project (List.map
-			(fun var -> M.find var !mapVar)
+			(fun var -> print_endline (map_to_string ()); M.find var !mapVar)
 			vars)
 
 		let itvize state e = itvize state (to_term e)
 
 	end
 
-	include Run_Domain(D)
+    module TimedD = TimedDomain.Lift(D)
+    module DirtyD = DirtyDomain.Lift(TimedD)
+	include Interpreter.Lift(DirtyD)
 
 	let apply_flags = fun () ->
 		begin
@@ -273,9 +278,8 @@ try begin
 	end;
 	VPL.exec !file;
 	Sys.set_signal Sys.sigalrm Sys.Signal_ignore;
-	let s = VPL.Timing.to_string () in
+	let s = VPL.export_timings () in
 	print s;
-	(*print_res (VPL.to_xml());*)
 	Profile.report()
 	|> print;
 with

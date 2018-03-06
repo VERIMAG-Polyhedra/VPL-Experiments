@@ -1,6 +1,6 @@
 open Interpreter;;
 
-module Printer_Domain = struct
+module Printer_Domain : Domain.Type = struct
 
 	module D = struct
 

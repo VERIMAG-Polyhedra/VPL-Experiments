@@ -1,28 +1,12 @@
 open XMLOutput
 
+type state =
+    | Top
+    | Bot
+    | Name of string
+
 module type Type = sig
-    (** Module defining an interval datatype, see {!val:itvize}. *)
-    module Interval : sig
-        type t
-    end
-
-    (** Name of the domain. *)
-    val name : string
-
-    (** Type of an abstract value. *)
-    type t =
-        | Top
-        | Bot
-        | Name of string
-
-    (** Top abstract value *)
-    val top: t
-
-    (** Bottom abstract value *)
-    val bottom: t
-
-    (** Tests if the given abstract value is bottom. *)
-    val is_bottom: t -> bool
+    include TimedDomain.Type with type t = state
 
     (** Computes the effect of a guard on an abstract value. *)
     val assume: string -> Cabs.expression -> t -> t
@@ -45,19 +29,11 @@ module type Type = sig
     (** Computes the widening of two abstract values. *)
     val widen: string -> t -> t -> t
 
-    (** [leq a1 a2] tests if [a1] is included into [a2]. *)
-    val leq: t -> t -> bool
-
-    val print : t -> unit
-
-    (** Computes an interval of the values that the given expression can reach in the given abstract value. *)
-    val itvize : t ->  Cabs.expression -> Interval.t
-
     (** Returns true if the given name is associated to an abstract value. *)
     val is_bound : string -> bool
 end
 
-module Lift (D : Domain.Type) : Type = struct
+module Lift (D : TimedDomain.Type) : Type = struct
 
     (** Map indexed by strings. *)
     module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
@@ -88,10 +64,7 @@ module Lift (D : Domain.Type) : Type = struct
 
     let name = D.name ^ ":dirty"
 
-    type t =
-        | Top
-    	| Bot
-    	| Name of string
+    type t = state
 
     let top = Top
     let bottom = Bot
@@ -114,6 +87,9 @@ module Lift (D : Domain.Type) : Type = struct
         Name output_name
 
     (* OPERATORS *)
+
+    let export_timings = D.export_timings
+
     let print : t -> unit
         = function
     	| Top -> print_string "top"
@@ -156,7 +132,6 @@ module Lift (D : Domain.Type) : Type = struct
         D.leq (value p1) (value p2)
 
     module Interval = D.Interval
-
 
     let itvize : t ->  Cabs.expression -> Interval.t
         = fun p expr ->
