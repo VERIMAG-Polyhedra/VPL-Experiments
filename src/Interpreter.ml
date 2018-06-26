@@ -3,8 +3,6 @@
 	Each operator has a dedicated timer.
 *)
 
-open XMLOutput
-
 module type Type = sig
     val export_timings : unit -> string
     val exec : string -> unit
@@ -85,7 +83,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
     let export_timings = D.export_timings
 
 	let load : string -> Cabs.expression
-		= let rec(substring : string -> int -> string)
+		= let substring : string -> int -> string
 			= fun s i ->
 			(String.sub s i ((String.length s) - i))
 		in
@@ -181,7 +179,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 
 		let div = op (/) (/.)
 
-		let opp x = op (fun i j -> -1 * i) (fun u v -> -1. *. u) x (Int (Some 0))
+		let opp x = op (fun i _ -> -1 * i) (fun u _ -> -1. *. u) x (Int (Some 0))
 
 		let bop : (int -> int -> 'bool) -> (float -> float -> 'bool) -> t -> t -> bool
 			= fun int_op float_op v1 v2 ->
@@ -213,9 +211,9 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			| "meet" | "widen" | "join" -> true
 			| _ -> false
 			end
-		| CALL (VARIABLE "guard", [s1;e]) when is_state s1 -> true
+		| CALL (VARIABLE "guard", [s1;_]) when is_state s1 -> true
 		| VARIABLE name -> D.is_bound name
-		| e -> false
+		| _ -> false
 		)
 
 	let rec parse_state : Cabs.expression -> D.t
@@ -242,7 +240,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			end
 		| CALL (VARIABLE "guard", [s1;e]) when is_state s1 ->
 			assume "VPL_RESERVED" e (parse_state s1)
-		| VARIABLE name -> Name name
+		| VARIABLE name -> DirtyDomain.Name name
 		| _ -> Pervasives.invalid_arg "parse_state"
 		))
 
@@ -254,9 +252,9 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 
 	let is_computation : Cabs.expression -> bool
 		= Cabs.(function
-		| BINARY (ASSIGN, VARIABLE var, e) -> true
-		| UNARY (POSINCR, VARIABLE var) -> true
-		| UNARY (POSDECR, VARIABLE var) -> true
+		| BINARY (ASSIGN, VARIABLE _, _) -> true
+		| UNARY (POSINCR, VARIABLE _) -> true
+		| UNARY (POSDECR, VARIABLE _) -> true
 		| _ -> false
 		)
 
@@ -302,9 +300,9 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| UNARY (NOT, e) -> not (eval_bexpr mem e)
 		| UNARY (_, _) -> Pervasives.failwith "eval_bexpr: Unexpected unary expression"
 		| BINARY (AND, e1, e2) -> (eval_bexpr mem e1) && (eval_bexpr mem e2)
-		| BINARY (BAND, e1, e2) -> (eval_bexpr mem e1) & (eval_bexpr mem e2)
+		| BINARY (BAND, e1, e2) -> (eval_bexpr mem e1) && (eval_bexpr mem e2)
 		| BINARY (OR, e1, e2) -> (eval_bexpr mem e1) || (eval_bexpr mem e2)
-		| BINARY (BOR, e1, e2) -> (eval_bexpr mem e1) or (eval_bexpr mem e2)
+		| BINARY (BOR, e1, e2) -> (eval_bexpr mem e1) || (eval_bexpr mem e2)
 		| BINARY (LE, e1, e2) -> Value.le (eval_aexpr mem e1) (eval_aexpr mem e2)
 		| BINARY (LT, e1, e2) -> Value.lt (eval_aexpr mem e1) (eval_aexpr mem e2)
 		| BINARY (GE, e1, e2) -> Value.ge (eval_aexpr mem e1) (eval_aexpr mem e2)
@@ -427,12 +425,12 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| Frontc.PARSING_OK defs -> defs
 		in
 		let main_fun = List.find (function
-			| Cabs.FUNDEF((_,_,(name,_,_,_)), body) when String.equal name "main" -> true
+			| Cabs.FUNDEF((_,_,(name,_,_,_)), _) when String.equal name "main" -> true
 			| _ -> false)
 			defs
 		in
 		match main_fun with
-		| Cabs.FUNDEF((_,_,(name,_,_,_)), body) ->
+		| Cabs.FUNDEF((_,_,(_,_,_,_)), body) ->
 			let _ = run MapS.empty body in
 			()
 		| _ -> ()

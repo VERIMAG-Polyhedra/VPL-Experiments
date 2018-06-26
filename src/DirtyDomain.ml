@@ -1,5 +1,3 @@
-open XMLOutput
-
 type state =
     | Top
     | Bot

@@ -65,7 +65,7 @@ let get_vars : int -> string list
 let q_to_constant : Q.t -> Cabs.expression
 	= fun q ->
 	let f = (float_of_string (q.Q.num |> Z.to_string)) /. (float_of_string (q.Q.den |> Z.to_string)) in
-	Cabs.CONSTANT (CONST_FLOAT (string_of_float f))
+	Cabs.CONSTANT (Cabs.CONST_FLOAT (string_of_float f))
 
 let cstr_to_cond : int -> Q.t list * cmp -> Cabs.expression
 	= fun dim (coeffs, cmp_op) ->
@@ -74,7 +74,7 @@ let cstr_to_cond : int -> Q.t list * cmp -> Cabs.expression
 			let prod = Cabs.BINARY (Cabs.MUL, q_to_constant coeff, (Cabs.VARIABLE var)) in
 			Cabs.BINARY (Cabs.ADD, cstr, prod)
 			)
-		(Cabs.CONSTANT (CONST_INT "0"))
+		(Cabs.CONSTANT (Cabs.CONST_INT "0"))
 		(sublist coeffs 0 dim)
 		(get_vars dim)
 	and cste = q_to_constant (List.nth coeffs dim)

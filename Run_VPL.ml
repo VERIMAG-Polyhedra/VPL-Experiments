@@ -1,6 +1,3 @@
-(*open Interpreter;;*)
-(*open Domains;;*)
-open IOBuild;;
 open Vpl;;
 open Arg;;
 
@@ -116,7 +113,7 @@ let timeout_handler : int -> unit
 
 module VPL = struct
 
-	include CWrappers.Interface(Scalar.Rat)
+	include WrapperTraductors.Interface(Scalar.Rat)
 
 	exception Out_of_Scope
 
@@ -157,21 +154,20 @@ module VPL = struct
 		))
 
 	let rec to_cond : Cabs.expression -> Cond.t
-		= Cabs.(Cond.(Vpl.Cstr.(Vpl.CWrappers.(function
-		| NOTHING -> Basic true
-		| UNARY (NOT, e) -> Not (to_cond e)
-		| BINARY (AND, e1, e2)
-		| BINARY (BAND, e1, e2) -> BinL (to_cond e1, AND, to_cond e2)
-		| BINARY (OR, e1, e2)
-		| BINARY (BOR, e1, e2) -> BinL (to_cond e1, OR, to_cond e2)
-		| BINARY (EQ, e1, e2) -> Atom (to_term e1, EQ, to_term e2)
-		| BINARY (NE, e1, e2) -> Atom (to_term e1, NEQ, to_term e2)
-		| BINARY (LE, e1, e2) -> Atom (to_term e1, LE, to_term e2)
-		| BINARY (LT, e1, e2) -> Atom (to_term e1, LT, to_term e2)
-		| BINARY (GT, e1, e2) -> Atom (to_term e1, GT, to_term e2)
-		| BINARY (GE, e1, e2) -> Atom (to_term e1, GE, to_term e2)
+		= function
+		| Cabs.NOTHING -> Cond.Basic true
+		| Cabs.UNARY (Cabs.NOT, e) -> Cond.Not (to_cond e)
+		| Cabs.BINARY (Cabs.AND, e1, e2)
+		| Cabs.BINARY (Cabs.BAND, e1, e2) -> Cond.BinL (to_cond e1, Vpl.WrapperTraductors.AND, to_cond e2)
+		| Cabs.BINARY (Cabs.OR, e1, e2)
+		| Cabs.BINARY (Cabs.BOR, e1, e2) -> Cond.BinL (to_cond e1, Vpl.WrapperTraductors.OR, to_cond e2)
+		| Cabs.BINARY (Cabs.EQ, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.EQ, to_term e2)
+		| Cabs.BINARY (Cabs.NE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.NEQ, to_term e2)
+		| Cabs.BINARY (Cabs.LE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.LE, to_term e2)
+		| Cabs.BINARY (Cabs.LT, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.LT, to_term e2)
+		| Cabs.BINARY (Cabs.GT, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.GT, to_term e2)
+		| Cabs.BINARY (Cabs.GE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.GE, to_term e2)
 		| _ -> Pervasives.raise Out_of_Scope
-		))))
 
 	module D = struct
 
