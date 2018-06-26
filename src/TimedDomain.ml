@@ -6,6 +6,16 @@ module type Type = sig
     val export_timings : unit -> string
 end
 
+module Time = struct
+    type t = float
+
+    let zero = 0.
+    let add = (+.)
+    let sub = (-.)
+    let compare = Pervasives.compare
+    let toZ x = x *. 10.0**9.0 |> Int64.of_float |> Z.of_int64
+end
+
 module Lift (D : Domain.Type) : Type = struct
 
 	(**
@@ -40,18 +50,18 @@ module Lift (D : Domain.Type) : Type = struct
 
     	type typ = Assume | Join | Project | Assign | Widen | Minimize
 
-		let record : typ -> int64 -> int64 -> unit
+		let record : typ -> Time.t -> Time.t -> unit
 			= fun typ tbeg tend ->
-			let time = Int64.sub tend tbeg in
-			if Int64.compare Int64.zero time > 0
+			let time = Time.sub tend tbeg in
+			if Time.compare Time.zero time > 0
 			then Pervasives.failwith "negative time"
 			else match typ with
-				| Assume -> t_ref := {!t_ref with assume = Z.add !t_ref.assume (Z.of_int64 time)}
-       			| Join -> t_ref := {!t_ref with join = Z.add !t_ref.join (Z.of_int64 time)}
-        		| Minimize -> t_ref := {!t_ref with minimize = Z.add !t_ref.minimize (Z.of_int64 time)}
-				| Project -> t_ref := {!t_ref with project = Z.add !t_ref.project (Z.of_int64 time)}
-				| Assign -> t_ref := {!t_ref with assign = Z.add !t_ref.project (Z.of_int64 time)}
-				| Widen -> t_ref := {!t_ref with widen = Z.add !t_ref.project (Z.of_int64 time)}
+				| Assume -> t_ref := {!t_ref with assume = Z.add !t_ref.assume (Time.toZ time)}
+       			| Join -> t_ref := {!t_ref with join = Z.add !t_ref.join (Time.toZ time)}
+        		| Minimize -> t_ref := {!t_ref with minimize = Z.add !t_ref.minimize (Time.toZ time)}
+				| Project -> t_ref := {!t_ref with project = Z.add !t_ref.project (Time.toZ time)}
+				| Assign -> t_ref := {!t_ref with assign = Z.add !t_ref.project (Time.toZ time)}
+				| Widen -> t_ref := {!t_ref with widen = Z.add !t_ref.project (Time.toZ time)}
 
 		let prTime : Z.t -> string
 			= fun t0 ->
@@ -143,9 +153,9 @@ module Lift (D : Domain.Type) : Type = struct
 
     let lift : ('a -> 'b) -> Timing.typ -> 'a -> 'b
         = fun operator typ args ->
-        let t_beg = Oclock.gettime Oclock.realtime in
+        let t_beg = Sys.time () in
 		let res = operator args in
-		let t_end = Oclock.gettime Oclock.realtime in
+		let t_end = Sys.time () in
 		Timing.record typ t_beg t_end;
         res
 

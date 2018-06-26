@@ -16,8 +16,9 @@ sanity:
 	ocamlfind query vpl
 	ocamlfind query FrontC
 	ocamlfind query apron
+	ocamlfind query mpi
 
 exp : sanity
-	$(OCB) -package oclock -package vpl -package FrontC Run_VPL.byte
+	$(OCB) -package vpl -package FrontC Run_VPL.byte
 
 .PHONY: clean exp sanity
