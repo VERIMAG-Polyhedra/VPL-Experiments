@@ -13,7 +13,7 @@ module Time = struct
     let add = (+.)
     let sub = (-.)
     let compare = Pervasives.compare
-    let toZ x = x *. 10.0**9.0 |> Int64.of_float |> Z.of_int64
+    let toZ x = x *. 10.0**9.0 |> Z.of_float
 end
 
 module Lift (D : Domain.Type) : Type = struct
@@ -59,7 +59,13 @@ module Lift (D : Domain.Type) : Type = struct
 				| Assume -> t_ref := {!t_ref with assume = Z.add !t_ref.assume (Time.toZ time)}
        			| Join -> t_ref := {!t_ref with join = Z.add !t_ref.join (Time.toZ time)}
         		| Minimize -> t_ref := {!t_ref with minimize = Z.add !t_ref.minimize (Time.toZ time)}
-				| Project -> t_ref := {!t_ref with project = Z.add !t_ref.project (Time.toZ time)}
+				| Project -> begin
+                    Printf.sprintf "recording (%f,%f) -> %s for projection"
+                        tbeg tend
+                        (Time.toZ time |> Z.to_string)
+                        |> print_endline;
+                    t_ref := {!t_ref with project = Z.add !t_ref.project (Time.toZ time)}
+                    end
 				| Assign -> t_ref := {!t_ref with assign = Z.add !t_ref.project (Time.toZ time)}
 				| Widen -> t_ref := {!t_ref with widen = Z.add !t_ref.project (Time.toZ time)}
 
@@ -151,26 +157,36 @@ module Lift (D : Domain.Type) : Type = struct
 
     include D
 
-    let lift : ('a -> 'b) -> Timing.typ -> 'a -> 'b
-        = fun operator typ args ->
-        let t_beg = Sys.time () in
+    let lift1 : ('a -> t) -> Timing.typ -> 'a -> t
+        = fun operator typ args -> begin
+        let t_beg = Unix.gettimeofday () in
 		let res = operator args in
-		let t_end = Sys.time () in
+		let t_end = Unix.gettimeofday () in
 		Timing.record typ t_beg t_end;
         res
+        end
 
-    let meet = lift meet Timing.Assume
+    let lift2 : ('a -> 'b -> t) -> Timing.typ -> 'a -> 'b -> t
+        = fun operator typ arg1 arg2 -> begin
+        let t_beg = Unix.gettimeofday () in
+		let res = operator arg1 arg2 in
+		let t_end = Unix.gettimeofday () in
+		Timing.record typ t_beg t_end;
+        res
+        end
 
-	let assume = lift assume Timing.Assume
+    let meet = lift2 meet Timing.Assume
 
-	let join = lift join Timing.Join
+	let assume = lift2 assume Timing.Assume
 
-	let widen = lift widen Timing.Widen
+	let join = lift2 join Timing.Join
 
-	let assign = lift assign Timing.Assign
+	let widen = lift2 widen Timing.Widen
 
-	let project = lift project Timing.Project
+	let assign = lift2 assign Timing.Assign
 
-	let minimize = lift minimize Timing.Minimize
+	let project = lift2 project Timing.Project
+
+	let minimize = lift1 minimize Timing.Minimize
 
 end

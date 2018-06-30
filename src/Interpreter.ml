@@ -222,7 +222,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| CALL (VARIABLE fun_name, []) when String.equal fun_name "bot" -> bottom
 		| CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
 			let cond = load file_name in
-            assume "VPL_RESERVED" cond D.top
+            D.assume "VPL_RESERVED" cond D.top
 		| CALL(VARIABLE "project", args)
 			when List.length args > 0 && is_state (List.hd args)
 			&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
@@ -230,16 +230,16 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 				(function VARIABLE var -> var | _ -> invalid_arg "from_body")
 				(List.tl args)
 			in
-			project "VPL_RESERVED" vars (parse_state (List.hd args))
+			D.project "VPL_RESERVED" vars (parse_state (List.hd args))
 		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
 			match fun_name with
-			| "meet" -> meet "VPL_RESERVED" (parse_state s1) (parse_state s2)
-			| "widen" -> widen "VPL_RESERVED" (parse_state s1) (parse_state s2)
-			| "join" -> join "VPL_RESERVED" (parse_state s1) (parse_state s2)
+			| "meet" -> D.meet "VPL_RESERVED" (parse_state s1) (parse_state s2)
+			| "widen" -> D.widen "VPL_RESERVED" (parse_state s1) (parse_state s2)
+			| "join" -> D.join "VPL_RESERVED" (parse_state s1) (parse_state s2)
 			| _ -> Pervasives.invalid_arg "parse_state"
 			end
 		| CALL (VARIABLE "guard", [s1;e]) when is_state s1 ->
-			assume "VPL_RESERVED" e (parse_state s1)
+			D.assume "VPL_RESERVED" e (parse_state s1)
 		| VARIABLE name -> DirtyDomain.Name name
 		| _ -> Pervasives.invalid_arg "parse_state"
 		))

@@ -85,6 +85,33 @@ open Cmd;;
 
 Arg.parse spec_list anon_fun usage_msg;;
 
+if !debug
+then
+    if Mpi.comm_rank Mpi.comm_world = 0
+    then begin
+    	Debug.set_colors();
+        Debug.enable();
+        Debug.print_enable();
+        Debug.enable_one (module PLPDistrib.DebugMaster);
+    	Profile.enable();
+    	Profile.reset()
+    end
+    else begin
+        Debug.set_colors();
+        Debug.print_enable();
+        (*PLPDistrib.DebugSlave.enable DebugTypes.([Title ; MInput ; MOutput ; Normal ; Detail]);
+        Debug.enable_one (module PLPCore.Debug)*)
+    end
+;;
+
+module PLP = PLP.PLP(Min.Classic(Vector.Rat.Positive));;
+if Mpi.comm_rank Mpi.comm_world > 0
+then begin
+    (* Since slaves start with a random point: *)
+    Random.init (Sys.time() *. 100000. |> int_of_float);
+    PLP.Distributed.Slave.first_whip ()
+end;;
+
 Printf.printf "Input file : %s\n" (!file);;
 
 let print_res : string -> unit
@@ -182,15 +209,13 @@ module VPL = struct
 
 		let minimize x = x
 
-		let project = projectM
-
 		let assume e = assume (to_cond e)
 
 		let assign l = assign (List.map
 			(fun (var, e) -> (M.find var !mapVar, to_term e))
 			l)
 
-		let project vars = project (List.map
+		let project vars = projectM (List.map
 			(fun var -> print_endline (map_to_string ()); M.find var !mapVar)
 			vars)
 
@@ -251,15 +276,6 @@ let print s =
 	if !output_file = None
 	then print_endline s
 ;;
-
-if !debug
-then begin
-	Vpl.Debug.set_colors();
-	Debug.enable();
-	Debug.print_enable();
-	Profile.enable();
-	Profile.reset()
-end;;
 
 Profile.reset();
 print_endline "Running VPL";

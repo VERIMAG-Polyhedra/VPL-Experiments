@@ -4,6 +4,9 @@ OCB_FLAGS = -cflags "-g -w "+a-4-32" -warn-error "+a-4-32"" -lflag -g -use-ocaml
 
 OCB = ocamlbuild -I $(SRC) $(OCB_FLAGS)
 
+MPICC=mpicc
+MPIRUN=mpirun
+
 all: exp
 
 clean:
@@ -20,5 +23,8 @@ sanity:
 
 exp : sanity
 	$(OCB) -package vpl -package FrontC Run_VPL.byte
+
+run_mpi : sanity
+	$(MPIRUN) -np 4 ./Run_VPL.byte -file tests/test_proj.c -folder benchs/ -proj plp
 
 .PHONY: clean exp sanity
