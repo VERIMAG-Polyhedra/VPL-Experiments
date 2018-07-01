@@ -1,4 +1,42 @@
-## Language
+# Installation
+
+1. __Install VPL__
+    1. Download and install _Ocamlmpi_, available at https://github.com/xavierleroy/ocamlmpi
+
+    2. Download the `dev_mpi` branch of the VPL, available at https://github.com/VERIMAG-Polyhedra/VPL/tree/dev_mpi
+
+    3. Check the VPL dependencies, and install them if needed
+
+    4. Compile the VPL:
+
+    ```
+    make
+    ```
+
+    5. Install the VPL:
+
+    ```
+    make install
+    ```
+
+2. __Install VPL-Experiments__
+    1. Then, download the VPL-Experiment repository, available at https://github.com/VERIMAG-Polyhedra/VPL-Experiments
+
+    2. Compile the VPL executable:
+
+    ```
+    make
+    ```
+
+# Usage
+To run a problem, you need to encode it with a C program (see the _Language_ section below).
+Then, type
+
+```
+mpirun -np <number_of_processes> ./Run_VPL.byte -file <C_file.c> -folder benchs/ -proj plp
+```
+
+# Language
 
 1. __Syntax__
 
@@ -71,7 +109,7 @@
 
 	The trace runner has a timer for each operator. If you need to see timings at some point:
 
-	``` 
+	```
 	void show_timers()
 	```
 
