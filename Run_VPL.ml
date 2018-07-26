@@ -92,15 +92,14 @@ then
     	Debug.set_colors();
         Debug.enable();
         Debug.print_enable();
-        Debug.enable_one (module PLPDistrib.DebugMaster);
+        Debug.enable_one (module PLPMPIMain.DebugMaster);
     	Profile.enable();
     	Profile.reset()
     end
     else begin
         Debug.set_colors();
         Debug.print_enable();
-        (*PLPDistrib.DebugSlave.enable DebugTypes.([Title ; MInput ; MOutput ; Normal ; Detail]);
-        Debug.enable_one (module PLPCore.Debug)*)
+        Debug.enable_one (module PLPMPIMain.DebugSlave)
     end
 ;;
 
@@ -109,7 +108,7 @@ if Mpi.comm_rank Mpi.comm_world > 0
 then begin
     (* Since slaves start with a random point: *)
     Random.init (Sys.time() *. 100000. |> int_of_float);
-    PLP.Distributed.Slave.first_whip ()
+    PLP.MPILegacy.Slave.first_whip ()
 end;;
 
 Printf.printf "Input file : %s\n" (!file);;
