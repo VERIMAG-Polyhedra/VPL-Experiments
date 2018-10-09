@@ -16,13 +16,14 @@ clean:
 sanity:
 	ocamlfind query zarith
 	ocamlfind query unix
-	ocamlfind query vpl
 	ocamlfind query FrontC
-	ocamlfind query apron
-	ocamlfind query mpi
+#	ocamlfind query mpi
 
-exp : sanity
+vpl : sanity
 	$(OCB) -package vpl -package FrontC Run_VPL.byte
+
+newpolka : sanity
+	$(OCB) -package zarith -package apron -package apron.polkaMPQ -package FrontC Run_Newpolka.byte
 
 run_mpi : sanity
 	$(MPIRUN) -np 4 ./Run_VPL.byte -file tests/test_proj.c -folder benchs/ -proj plp
