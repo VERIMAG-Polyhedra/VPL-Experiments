@@ -1,26 +1,16 @@
 # Installation
 
 1. __Install VPL__
-    1. Download and install _Ocamlmpi_, available at https://github.com/xavierleroy/ocamlmpi
 
-    2. Download the `dev_mpi` branch of the VPL, available at https://github.com/VERIMAG-Polyhedra/VPL/tree/dev_mpi
-
-    3. Check the VPL dependencies, and install them if needed
-
-    4. Compile the VPL:
-
-    ```
-    make
-    ```
-
-    5. Install the VPL:
-
-    ```
-    make install
-    ```
+    With OPAM:
+```
+opam repo add vpl https://raw.githubusercontent.com/VERIMAG-Polyhedra/opam-vpl/master
+opam update
+opam install vpl-core
+```
 
 2. __Install VPL-Experiments__
-    1. Then, download the VPL-Experiment repository, available at https://github.com/VERIMAG-Polyhedra/VPL-Experiments
+    1. Download or clone the VPL-Experiment repository, available at https://github.com/VERIMAG-Polyhedra/VPL-Experiments
 
     2. Compile the VPL executable:
 
@@ -33,7 +23,7 @@ To run a problem, you need to encode it with a C program (see the _Language_ sec
 Then, type
 
 ```
-mpirun -np <number_of_processes> ./Run_VPL.byte -file <C_file.c> -folder benchs/ -proj plp
+./Run_VPL.byte -file <C_file.c> -folder benchs/ -proj plp
 ```
 
 # Language

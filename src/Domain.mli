@@ -1,23 +1,12 @@
 (**
-	The type for an abstract domain module.
+    This modules provides a type for abstract domains.
 	Operators rely on the expression type {!type:Cabs.expression}, which is an AST for C expressions.
 *)
 
 (** Type for variables during the parsing process. *)
 type variable = string
 
-(** Type for abstract states. *)
-type state =
-	| Top
-	| Bot
-	| Name of string
-
-let state_to_string : state -> string
-	= function
-	| Top -> "top"
-	| Bot -> "bot"
-	| Name name -> name
-
+(** Type of abstract domains. *)
 module type Type = sig
 
 	(** Module defining an interval datatype, see {!val:itvize}. *)

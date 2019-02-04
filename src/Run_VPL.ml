@@ -87,29 +87,14 @@ Arg.parse spec_list anon_fun usage_msg;;
 
 if !debug
 then
-    if Mpi.comm_rank Mpi.comm_world = 0
-    then begin
-    	Debug.set_colors();
-        Debug.enable();
-        Debug.print_enable();
-        Debug.enable_one (module PLPMPIMain.DebugMaster);
-    	Profile.enable();
-    	Profile.reset()
-    end
-    else begin
-        Debug.set_colors();
-        Debug.print_enable();
-        Debug.enable_one (module PLPMPIMain.DebugSlave)
-    end
+	Debug.set_colors();
+    Debug.enable();
+    Debug.print_enable();
+	Profile.enable();
+	Profile.reset()
 ;;
 
 module PLP = PLP.PLP(Min.Classic(Vector.Rat.Positive));;
-if Mpi.comm_rank Mpi.comm_world > 0
-then begin
-    (* Since slaves start with a random point: *)
-    Random.init (Sys.time() *. 100000. |> int_of_float);
-    PLP.MPILegacy.Slave.first_whip ()
-end;;
 
 Printf.printf "Input file : %s\n" (!file);;
 
