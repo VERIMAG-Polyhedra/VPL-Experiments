@@ -56,5 +56,5 @@ module type Type = sig
 	val print : t -> unit
 
 	(** Computes an interval of the values that the given expression can reach in the given abstract value. *)
-	val itvize : t ->  Cabs.expression -> Interval.t
+	val itvize : Cabs.expression -> t -> Interval.t
 end

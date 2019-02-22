@@ -16,8 +16,6 @@ module Cmd = struct
 
 	let time_budget : int option ref = ref None
 
-	let flag_lp = ref Flags.Splx
-
 	let flag_plp = ref Flags.Adj_Raytracing
 
 	let flag_scalar = ref Flags.Rat
@@ -28,11 +26,6 @@ module Cmd = struct
 	let flag_proj = ref (fun () -> Flags.FM)
 
 	let flag_join = ref (fun () -> Flags.Baryc)
-
-	let update_lp = function
-		| "glpk" -> flag_lp := Flags.Glpk
-		| "splx" -> flag_lp := Flags.Splx
-		| _ -> invalid_arg "update_lp"
 
 	let update_plp = function
 		| "raytracing" -> flag_plp := Flags.Adj_Raytracing
@@ -58,7 +51,7 @@ module Cmd = struct
 
 	let update_min = function
 		| "classic" -> flag_min := (fun () -> Flags.Classic)
-		| "raytracing" -> flag_min := (fun () -> Flags.Raytracing !flag_lp)
+		| "raytracing" -> flag_min := (fun () -> Flags.Raytracing)
 		| _ -> invalid_arg "update_min"
 
 	let spec_list = [
@@ -67,7 +60,6 @@ module Cmd = struct
 		("-debug", Unit (fun () -> debug:= true ),"Enable debug mode");
 		("-timeout", Int (fun i -> time_budget := Some i ),"Timeout value");
 		("-folder", String (fun s -> Interpreter.folder := s), "Folder containing polyhedra files");
-		("-lp", String update_lp, "LP method (gplk | splx)");
 		("-plp", String update_plp, "PLP method (raytracing | greedy)");
 		("-scalar", String update_scalar, "Scalar type (rat | symb | float)");
 		("-proj", String update_proj, "Projection algorithm (fm | plp)");
@@ -87,14 +79,12 @@ Arg.parse spec_list anon_fun usage_msg;;
 
 if !debug
 then
-	Debug.set_colors();
-    Debug.enable();
-    Debug.print_enable();
+	Debugger.set_colors();
+    Debugger.enable();
+    Debugger.print_enable();
 	Profile.enable();
 	Profile.reset()
 ;;
-
-module PLP = PLP.PLP(Min.Classic(Vector.Rat.Positive));;
 
 Printf.printf "Input file : %s\n" (!file);;
 
@@ -122,25 +112,20 @@ let timeout_handler : int -> unit
 (* *************** Modules *************** *)
 (* *************************************** *)
 
-module VPL = struct
+open UserInterface
+module I = WrapperTraductors.Interface(Scalar.Rat)
+open I
 
-	include WrapperTraductors.Interface(Scalar.Rat)
+module Ident = Lift_Ident (struct
+    type t = string
+    let compare = Pervasives.compare
+    let to_string s = s
+    end)
 
-	exception Out_of_Scope
+module Expr = struct
+    type t = Cabs.expression
 
-	module M = Map.Make(struct type t = string let compare = Pervasives.compare end)
-
-	(* Map associating variable names (as string) to their VPL representation. *)
-	let mapVar : Var.Positive.t M.t ref = ref M.empty
-	let next : Var.Positive.t ref = ref Var.Positive.u
-
-    let map_to_string : unit -> string
-        = fun () ->
-        Misc.list_to_string
-            (fun (name,var) -> Printf.sprintf "%s -> %s" name (Var.Positive.to_string var))
-            (M.bindings !mapVar) ";"
-
-	let rec to_term : Cabs.expression -> Term.t
+    let rec to_term : t -> Term.t
 		= Cabs.(Term.(function
 		| UNARY (MINUS, e) -> Opp (to_term e)
 		| UNARY (PLUS, e) -> to_term e
@@ -152,60 +137,57 @@ module VPL = struct
 		| CONSTANT (CONST_INT c) -> Cte (Scalar.Rat.of_string c)
 		| CONSTANT (CONST_FLOAT f) -> Cte (float_of_string f |> Scalar.Rat.of_float)
 		| VARIABLE var_name -> begin
-			if M.mem var_name !mapVar
-			then Var (M.find var_name !mapVar)
-			else begin
-				let value = !next in
-				mapVar := M.add var_name !next !mapVar;
-				next := Var.Positive.next !next;
-				Var value
-			end
+            Ident.addVars [var_name];
+            Var (Ident.toVar var_name)
 			end
 		| _ -> Pervasives.raise Out_of_Scope
 		))
 
-	let rec to_cond : Cabs.expression -> Cond.t
-		= function
-		| Cabs.NOTHING -> Cond.Basic true
-		| Cabs.UNARY (Cabs.NOT, e) -> Cond.Not (to_cond e)
-		| Cabs.BINARY (Cabs.AND, e1, e2)
-		| Cabs.BINARY (Cabs.BAND, e1, e2) -> Cond.BinL (to_cond e1, Vpl.WrapperTraductors.AND, to_cond e2)
-		| Cabs.BINARY (Cabs.OR, e1, e2)
-		| Cabs.BINARY (Cabs.BOR, e1, e2) -> Cond.BinL (to_cond e1, Vpl.WrapperTraductors.OR, to_cond e2)
-		| Cabs.BINARY (Cabs.EQ, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.EQ, to_term e2)
-		| Cabs.BINARY (Cabs.NE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.NEQ, to_term e2)
-		| Cabs.BINARY (Cabs.LE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.LE, to_term e2)
-		| Cabs.BINARY (Cabs.LT, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.LT, to_term e2)
-		| Cabs.BINARY (Cabs.GT, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.GT, to_term e2)
-		| Cabs.BINARY (Cabs.GE, e1, e2) -> Cond.Atom (to_term e1, Vpl.Cstr.GE, to_term e2)
-		| _ -> Pervasives.raise Out_of_Scope
+    let rec of_term : Term.t -> t
+        = Cabs.(Term.(function
+        | Cte c -> CONSTANT(CONST_FLOAT (Scalar.Rat.to_string c))
+        | Var var -> VARIABLE (Ident.ofVar var)
+        | Add(t1, t2) -> BINARY(ADD, of_term t1, of_term t2)
+        | Opp t -> UNARY(MINUS, of_term t)
+        | Sum [t] -> of_term t
+        | Sum (t :: ts) -> BINARY(ADD, of_term t, of_term (Sum ts))
+        | Mul(t1, t2) -> BINARY(MUL, of_term t1, of_term t2)
+        | Prod [t] -> of_term t
+        | Prod (t :: ts) -> BINARY(MUL, of_term t, of_term (Prod ts))
+        | _ -> Pervasives.raise Out_of_Scope))
+end
 
-	module D = struct
+module VPL = struct
+    module D = struct
+        include MakeCustom(Vpl.Domains.CstrQ)(Ident)(Expr)
 
-		include NCDomain.NCVPL_Cstr.Q
+        module Interval = NCDomain.NCVPL_Unit.I.QInterface.Interval
 
-		module Interval = NCDomain.NCVPL_Unit.I.QInterface.Interval
+        let rec expr_to_cond : Cabs.expression -> b_expr
+            = function
+    		| Cabs.NOTHING -> Basic true
+    		| Cabs.UNARY (Cabs.NOT, e) -> Not (expr_to_cond e)
+    		| Cabs.BINARY (Cabs.AND, e1, e2)
+    		| Cabs.BINARY (Cabs.BAND, e1, e2) -> BinL (expr_to_cond e1, Vpl.WrapperTraductors.AND, expr_to_cond e2)
+    		| Cabs.BINARY (Cabs.OR, e1, e2)
+    		| Cabs.BINARY (Cabs.BOR, e1, e2) -> BinL (expr_to_cond e1, Vpl.WrapperTraductors.OR, expr_to_cond e2)
+    		| Cabs.BINARY (Cabs.EQ, e1, e2) -> Atom (e1, Cstr_type.EQ, e2)
+    		| Cabs.BINARY (Cabs.NE, e1, e2) -> Atom (e1, Cstr_type.NEQ, e2)
+    		| Cabs.BINARY (Cabs.LE, e1, e2) -> Atom (e1, Cstr_type.LE, e2)
+    		| Cabs.BINARY (Cabs.LT, e1, e2) -> Atom (e1, Cstr_type.LT, e2)
+    		| Cabs.BINARY (Cabs.GT, e1, e2) -> Atom (e1, Cstr_type.GT, e2)
+    		| Cabs.BINARY (Cabs.GE, e1, e2) -> Atom (e1, Cstr_type.GE, e2)
+            | _ -> Pervasives.raise Out_of_Scope
 
-		let name = "VPL"
+        let name = "VPL"
 
-		let print p = to_string Pol.Var.to_string p
-			|> print_endline
+        let print p = to_string var_to_string p
+            |> print_endline
 
-		let minimize x = x
+        let minimize x = x
 
-		let assume e = assume (to_cond e)
-
-		let assign l = assign (List.map
-			(fun (var, e) -> (M.find var !mapVar, to_term e))
-			l)
-
-		let project vars = projectM (List.map
-			(fun var -> print_endline (map_to_string ()); M.find var !mapVar)
-			vars)
-
-		let itvize state e = itvize state (to_term e)
-
-	end
+        let assume e = assume (expr_to_cond e)
+    end
 
     module TimedD = TimedDomain.Lift(D)
     module DirtyD = DirtyDomain.Lift(TimedD)
@@ -285,5 +267,3 @@ with
 end;
 Profile.disable()
 ;;
-
-exit 0;;

@@ -115,7 +115,7 @@ module Lift (D : TimedDomain.Type) : Type = struct
 
     module Interval = D.Interval
 
-    let itvize : t ->  Cabs.expression -> Interval.t
-        = fun p expr ->
-        D.itvize (value p) expr
+    let itvize : Cabs.expression -> t -> Interval.t
+        = fun expr p ->
+        D.itvize expr (value p)
 end
