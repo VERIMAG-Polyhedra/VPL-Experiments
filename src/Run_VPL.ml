@@ -76,6 +76,7 @@ end
 open Cmd;;
 
 Arg.parse spec_list anon_fun usage_msg;;
+Flags.log_trace := false;;
 
 if !debug
 then
@@ -159,7 +160,7 @@ end
 
 module VPL = struct
     module D = struct
-        include MakeCustom(Vpl.Domains.CstrQ)(Ident)(Expr)
+        include MakeCustom(Vpl.Domains.UnitQ)(Ident)(Expr)
 
         module Interval = NCDomain.NCVPL_Unit.I.QInterface.Interval
 

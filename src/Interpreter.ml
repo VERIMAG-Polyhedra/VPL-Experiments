@@ -376,7 +376,11 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 						)
 						mem names
 				| Cabs.DECDEF(Cabs.NAMED_TYPE "abs_value", _, names) -> begin
-						List.iter (fun (name, _, _, _) -> let _ = D.assume name top_expr D.top in ()) names;
+						List.iter (fun (name, _, _, e) ->
+                            if is_state e
+                            then let _ = parse_state ~res_name:name e in ()
+                            else let _ = D.assume name top_expr D.top in ()
+                        ) names;
 						mem
 					end
 				| Cabs.DECDEF(Cabs.NAMED_TYPE "var", _, names) -> begin
