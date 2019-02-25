@@ -204,51 +204,66 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 
     let rec is_state : Cabs.expression -> bool
 		= Cabs.(function
-		| CALL (VARIABLE fun_name, [])
-			when String.equal fun_name "bot" || String.equal fun_name "top" -> true
-		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
-			match fun_name with
+		| CALL (VARIABLE "bot", [])
+        | CALL (VARIABLE "top", []) -> true
+        | CALL(VARIABLE "project", args)
+			when List.length args > 0 && is_state (List.hd args)
+			&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
+            true
+		| CALL (VARIABLE fun_name, [s1;s2])
+            when is_state s1 && is_state s2 &&
+            (match fun_name with
 			| "meet" | "widen" | "join" -> true
-			| _ -> false
-			end
-		| CALL (VARIABLE "guard", [s1;_]) when is_state s1 -> true
+			| _ -> false)
+            -> true
+        | CALL(VARIABLE fun_name, [st; e])
+			when is_state st && not (is_state e) &&
+			(match fun_name with
+			| "guard" -> true
+			| "assign" -> true
+			| _ -> false)
+            -> true
+        | CALL(VARIABLE "load", [CONSTANT (CONST_STRING _)]) -> true
 		| VARIABLE name -> D.is_bound name
 		| _ -> false
 		)
-
-	let rec parse_state : Cabs.expression -> D.t
-		= Cabs.(D.(function
-		| CALL (VARIABLE fun_name, []) when String.equal fun_name "top" -> top
-		| CALL (VARIABLE fun_name, []) when String.equal fun_name "bot" -> bottom
-		| CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
-			let cond = load file_name in
-            D.assume "VPL_RESERVED" cond D.top
-		| CALL(VARIABLE "project", args)
-			when List.length args > 0 && is_state (List.hd args)
-			&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
-			let vars = List.map
-				(function VARIABLE var -> var | _ -> invalid_arg "from_body")
-				(List.tl args)
-			in
-			D.project "VPL_RESERVED" vars (parse_state (List.hd args))
-		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 -> begin
-			match fun_name with
-			| "meet" -> D.meet "VPL_RESERVED" (parse_state s1) (parse_state s2)
-			| "widen" -> D.widen "VPL_RESERVED" (parse_state s1) (parse_state s2)
-			| "join" -> D.join "VPL_RESERVED" (parse_state s1) (parse_state s2)
-			| _ -> Pervasives.invalid_arg "parse_state"
-			end
-		| CALL (VARIABLE "guard", [s1;e]) when is_state s1 ->
-			D.assume "VPL_RESERVED" e (parse_state s1)
-		| VARIABLE name -> DirtyDomain.Name name
-		| _ -> Pervasives.invalid_arg "parse_state"
-		))
 
     let parse_assign : Cabs.expression -> (Domain.variable * Cabs.expression)
 		= Cabs.(function
 		| BINARY (ASSIGN, (VARIABLE var), e) -> (var, e)
 		| _ -> Pervasives.failwith "Unexpected assignment"
 		)
+
+	let rec parse_state ?res_name:(res_name="VPL_RESERVED") expr
+        = Cabs.(D.(match expr with
+		| CALL (VARIABLE "top", []) -> top
+		| CALL (VARIABLE "bot", []) -> bottom
+		| CALL (VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
+			let cond = load file_name in
+            D.assume res_name cond D.top
+		| CALL(VARIABLE "project", args)
+			when List.length args > 0 && is_state (List.hd args)
+			&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
+			let vars = List.map
+				(function VARIABLE var -> var | _ -> invalid_arg "parse_state")
+				(List.tl args)
+			in
+			D.project res_name vars (parse_state (List.hd args))
+		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
+            let f = match fun_name with
+			| "meet" -> D.meet | "widen" -> D.widen | "join" -> D.join
+			| _ -> invalid_arg "parse_state"
+            in
+            f res_name (parse_state s1) (parse_state s2)
+		| CALL (VARIABLE fun_name, [st;e]) when is_state st && not (is_state e) -> begin
+            match fun_name with
+			| "guard" -> D.assume res_name e (parse_state st)
+			| "assign" -> D.assign res_name [parse_assign e] (parse_state st)
+			| _ -> invalid_arg "Unexpected function call with one abstract state"
+			end
+		| VARIABLE name -> DirtyDomain.Name name
+		| _ -> invalid_arg "parse_state"
+		))
 
 	let is_computation : Cabs.expression -> bool
 		= Cabs.(function
@@ -295,6 +310,22 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			end
 		)
 
+    let rec is_bexpr : Cabs.expression -> bool
+        = Cabs.(function
+		| UNARY (NOT, _) -> true
+		| BINARY (s, e1, e2) when
+            s = AND || s = BAND || s = OR || s = BOR
+            -> (is_bexpr e1) && (is_bexpr e2)
+		| BINARY (cmp, _, _) when
+            cmp = LE || cmp = LT || cmp = GE || cmp = GT || cmp = EQ || cmp = NE
+            -> true
+        | CALL (VARIABLE "includes", [e1 ; e2]) when is_state e1 && is_state e2 ->
+			true
+        | CALL (VARIABLE "isBottom", [e]) when is_state e ->
+            true
+		| _ -> false
+		)
+
 	let rec eval_bexpr : mem -> Cabs.expression -> bool
 		= fun mem -> Cabs.(function
 		| UNARY (NOT, e) -> not (eval_bexpr mem e)
@@ -311,6 +342,8 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| BINARY (NE, e1, e2) -> Value.neq (eval_aexpr mem e1) (eval_aexpr mem e2)
 		| CALL (VARIABLE "includes", [e1 ; e2]) when is_state e1 && is_state e2 ->
 			D.leq (parse_state e2) (parse_state e1)
+        | CALL (VARIABLE "isBottom", [e]) when is_state e ->
+            D.is_bottom (parse_state e)
 		| _ -> Pervasives.failwith "Unexpected boolean expression"
 		)
 
@@ -362,39 +395,20 @@ module Lift (D : DirtyDomain.Type) : Type = struct
         print_endline (stmt_to_string stmt);
         match stmt with
 		| NOP -> mem
-		| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st1; st2])))
-			when is_state st1 && is_state st2 -> begin
-			match fun_name with
-			| "meet" -> begin
-                let _ = D.meet res_name (parse_state st1) (parse_state st2) in mem
-            end
-			| "join" -> let _ = D.join res_name (parse_state st1) (parse_state st2) in mem
-			| "widen" -> let _ = D.widen res_name (parse_state st1) (parse_state st2) in mem
-			| _ -> Pervasives.failwith "Unexpected function call with two abstract states"
-			end
-		| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "load", [CONSTANT (CONST_STRING file_name)]))) ->
-			let cond = load file_name in
-            let _ = D.assume res_name cond D.top in
+		| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), expr))
+            when is_state expr ->
+            let _ = parse_state ~res_name:res_name expr in
             mem
-		| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE "project", args)))
-			when List.length args > 0 && is_state (List.hd args)
-			&& List.for_all (function VARIABLE _ -> true | _ -> false) (List.tl args) ->
-			let vars = List.map
-				(function VARIABLE var -> var | _ -> invalid_arg "from_body")
-				(List.tl args)
-			in
-            let _ = D.project res_name vars (parse_state (List.hd args)) in
-            mem
-		| COMPUTATION (BINARY (ASSIGN, (VARIABLE res_name), CALL(VARIABLE fun_name, [st; e])))
-			when is_state st && not (is_state e) -> begin
-			match fun_name with
-			| "guard" -> let _ = D.assume res_name e (parse_state st) in mem
-			| "assign" -> let _ = D.assign res_name [parse_assign e] (parse_state st) in mem
-			| _ -> Pervasives.failwith "Unexpected function call with one abstract state"
-			end
 		| COMPUTATION e when is_computation e ->
 			let (var, assign) = parse_computation e in
             update_mem mem var assign
+        | COMPUTATION ((CALL (VARIABLE _, _)) as expr)
+            when is_state expr ->
+            let _ = parse_state expr in
+            mem
+        | COMPUTATION b_expr when is_bexpr b_expr ->
+			let _ = eval_bexpr mem b_expr in
+            mem
 		| IF (e, s1, s2) ->
             if eval_bexpr mem e
             then run mem ([],s1)
@@ -410,9 +424,10 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| SEQUENCE (s1,s2) ->
             let mem' = run mem ([],s1) in
 			run mem' ([],s2)
-		| _ -> begin
+		| s -> begin
 			Cprint.print_statement stmt;
-			Pervasives.invalid_arg "Unexpected statement"
+			Printf.sprintf "Unexpected statement %s" (stmt_to_string s)
+                |> invalid_arg
 			end
 		)
 
