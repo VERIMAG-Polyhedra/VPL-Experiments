@@ -162,14 +162,14 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			| Float (Some f) -> Printf.sprintf "float %f" f
 			| Float None -> "float"
 
-		let op : (int -> int -> int) -> (float -> float -> float) -> t -> t -> t =
-		fun int_op float_op v1 v2 ->
-		match v1,v2 with
-		| Int (Some i1), Int (Some i2) -> Int (Some (int_op i1 i2))
-		| Float (Some f1), Float (Some f2) -> Float (Some (float_op f1 f2))
-		| Int (Some i1), Float (Some f2) -> Float (Some (float_op (float_of_int i1) f2))
-		| Float (Some f1), Int (Some i2) -> Float (Some (float_op f1 (float_of_int i2)))
-		| _-> Pervasives.failwith "Value.op: unexpected None value"
+		let op : (int -> int -> int) -> (float -> float -> float) -> t -> t -> t
+            = fun int_op float_op v1 v2 ->
+    		match v1,v2 with
+    		| Int (Some i1), Int (Some i2) -> Int (Some (int_op i1 i2))
+    		| Float (Some f1), Float (Some f2) -> Float (Some (float_op f1 f2))
+    		| Int (Some i1), Float (Some f2) -> Float (Some (float_op (float_of_int i1) f2))
+    		| Float (Some f1), Int (Some i2) -> Float (Some (float_op f1 (float_of_int i2)))
+    		| _-> Pervasives.failwith "Value.op: unexpected None value"
 
 		let add = op (+) (+.)
 
@@ -213,14 +213,13 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| CALL (VARIABLE fun_name, [s1;s2])
             when is_state s1 && is_state s2 &&
             (match fun_name with
-			| "meet" | "widen" | "join" -> true
+			| "meet" | "widen" | "join" | "projincl" -> true
 			| _ -> false)
             -> true
         | CALL(VARIABLE fun_name, [st; e])
 			when is_state st && not (is_state e) &&
 			(match fun_name with
-			| "guard" -> true
-			| "assign" -> true
+			| "guard" | "assign" | "assume_back" -> true
 			| _ -> false)
             -> true
         | CALL(VARIABLE "load", [CONSTANT (CONST_STRING _)]) -> true
@@ -249,15 +248,22 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 				(List.tl args)
 			in
 			D.project res_name vars (parse_state (List.hd args))
+        | CALL (VARIABLE "projincl", [s1;s2]) when is_state s1 && is_state s2 ->
+            begin
+            match D.proj_incl res_name (parse_state s1) (parse_state s2) with
+            | Some res -> res
+            | None -> (parse_state s1)
+            end
 		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
             let f = match fun_name with
 			| "meet" -> D.meet | "widen" -> D.widen | "join" -> D.join
-			| _ -> invalid_arg "parse_state"
+			| _ -> invalid_arg "Unexpected function call with two abstract states"
             in
             f res_name (parse_state s1) (parse_state s2)
 		| CALL (VARIABLE fun_name, [st;e]) when is_state st && not (is_state e) -> begin
             match fun_name with
 			| "guard" -> D.assume res_name e (parse_state st)
+			| "assume_back" -> D.assume_back res_name e (parse_state st)
 			| "assign" -> D.assign res_name [parse_assign e] (parse_state st)
 			| _ -> invalid_arg "Unexpected function call with one abstract state"
 			end
