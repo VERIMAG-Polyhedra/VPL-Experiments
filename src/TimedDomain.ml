@@ -29,6 +29,8 @@ module Lift (D : Domain.Type) : Type = struct
     		assume : Z.t;
     		assign : Z.t;
     		widen : Z.t;
+            proj_incl : Z.t;
+            assume_back : Z.t;
 		}
 
 		let t_ref : t ref = ref {
@@ -38,6 +40,8 @@ module Lift (D : Domain.Type) : Type = struct
 			assume = Z.zero;
 			assign = Z.zero;
 			widen = Z.zero;
+            proj_incl = Z.zero;
+            assume_back = Z.zero;
         }
 
 		let total : unit -> Z.t
@@ -47,8 +51,10 @@ module Lift (D : Domain.Type) : Type = struct
 			|> Z.add !t_ref.assign
 			|> Z.add !t_ref.join
       		|> Z.add !t_ref.minimize
+      		|> Z.add !t_ref.proj_incl
+      		|> Z.add !t_ref.assume_back
 
-    	type typ = Assume | Join | Project | Assign | Widen | Minimize
+    	type typ = Assume | Join | Project | Assign | Widen | Minimize | ProjIncl | AssumeBack
 
 		let record : typ -> Time.t -> Time.t -> unit
 			= fun typ tbeg tend ->
@@ -57,6 +63,7 @@ module Lift (D : Domain.Type) : Type = struct
 			then Pervasives.failwith "negative time"
 			else match typ with
 				| Assume -> t_ref := {!t_ref with assume = Z.add !t_ref.assume (Time.toZ time)}
+                | AssumeBack -> t_ref := {!t_ref with assume_back = Z.add !t_ref.assume_back (Time.toZ time)}
        			| Join -> t_ref := {!t_ref with join = Z.add !t_ref.join (Time.toZ time)}
         		| Minimize -> t_ref := {!t_ref with minimize = Z.add !t_ref.minimize (Time.toZ time)}
 				| Project -> begin
@@ -68,6 +75,7 @@ module Lift (D : Domain.Type) : Type = struct
                     end
 				| Assign -> t_ref := {!t_ref with assign = Z.add !t_ref.project (Time.toZ time)}
 				| Widen -> t_ref := {!t_ref with widen = Z.add !t_ref.project (Time.toZ time)}
+                | ProjIncl -> t_ref := {!t_ref with proj_incl = Z.add !t_ref.proj_incl (Time.toZ time)}
 
 		let prTime : Z.t -> string
 			= fun t0 ->
@@ -98,7 +106,7 @@ module Lift (D : Domain.Type) : Type = struct
 
 		let to_string : unit -> string
 			= fun () ->
-			Printf.sprintf "Library %s:\n\twiden : %s\n\tassume : %s\n\tproject : %s\n\tminimize : %s\n\tassign : %s\n\tjoin : %s\n\tTOTAL : %s\n"
+			Printf.sprintf "Library %s:\n\twiden : %s\n\tassume : %s\n\tproject : %s\n\tminimize : %s\n\tassign : %s\n\tjoin : %s\n\tproj_incl : %s\n\tassume_back : %s\n\tTOTAL : %s\n"
 				D.name
 				(prTime !t_ref.widen)
 				(prTime !t_ref.assume)
@@ -106,6 +114,8 @@ module Lift (D : Domain.Type) : Type = struct
                 (prTime !t_ref.minimize)
 				(prTime !t_ref.assign)
 				(prTime !t_ref.join)
+				(prTime !t_ref.proj_incl)
+				(prTime !t_ref.assume_back)
 				(prTime (total ()))
 
 	    let prRealTime : Z.t -> string
@@ -128,6 +138,8 @@ module Lift (D : Domain.Type) : Type = struct
 			time_to_xml "min" !t_ref.minimize;
 			time_to_xml "assign" !t_ref.assign;
 			time_to_xml "join" !t_ref.join;
+			time_to_xml "proj_incl" !t_ref.proj_incl;
+			time_to_xml "assume_back" !t_ref.assume_back;
 			time_to_xml "total" (total ())]
 			|> List.filter ((<>) "")
 			|> String.concat ""
@@ -179,6 +191,8 @@ module Lift (D : Domain.Type) : Type = struct
 
 	let assume = lift2 assume Timing.Assume
 
+    let assume_back = lift2 assume_back Timing.AssumeBack
+
 	let join = lift2 join Timing.Join
 
 	let widen = lift2 widen Timing.Widen
@@ -187,6 +201,13 @@ module Lift (D : Domain.Type) : Type = struct
 
 	let project = lift2 project Timing.Project
 
-	let minimize = lift1 minimize Timing.Minimize
+    let proj_incl p1 p2 = begin
+        let t_beg = Unix.gettimeofday () in
+        let res = proj_incl p1 p2 in
+        let t_end = Unix.gettimeofday () in
+        Timing.record Timing.ProjIncl t_beg t_end;
+        res
+    end
 
+	let minimize = lift1 minimize Timing.Minimize
 end

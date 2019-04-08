@@ -6,10 +6,12 @@ type state =
 module type Type = sig
     include TimedDomain.Type with type t = state
     val assume: string -> Cabs.expression -> t -> t
+    val assume_back: string -> Cabs.expression -> t -> t
     val assign : string -> (Domain.variable * Cabs.expression) list -> t -> t
     val meet : string -> t -> t -> t
     val join: string -> t -> t -> t
     val project: string -> Domain.variable list -> t -> t
+    val proj_incl : string -> t -> t -> t option
     val minimize : string -> t -> t
     val widen: string -> t -> t -> t
     val is_bound : string -> bool
@@ -90,6 +92,11 @@ module Lift (D : TimedDomain.Type) : Type = struct
 		set (D.assume cond (value p2)) output_name;
         Name output_name
 
+    let assume_back : string -> Cabs.expression -> t -> t
+        = fun output_name cond p2 ->
+		set (D.assume_back cond (value p2)) output_name;
+        Name output_name
+
 	let assign : string -> (Domain.variable * Cabs.expression) list -> t -> t
         = fun output_name assigns p ->
 		set (D.assign assigns (value p)) output_name;
@@ -99,6 +106,12 @@ module Lift (D : TimedDomain.Type) : Type = struct
         = fun output_name vars p ->
 		set (D.project vars (value p)) output_name;
         Name output_name
+
+    let proj_incl : string -> t -> t -> t option
+        = fun output_name p1 p2 ->
+        match D.proj_incl (value p1) (value p2) with
+        | Some p -> (set p output_name; Some (Name output_name))
+        | None -> None
 
 	let minimize : string -> t -> t
         = fun output_name p ->

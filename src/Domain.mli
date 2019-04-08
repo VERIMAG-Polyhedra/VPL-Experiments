@@ -32,6 +32,8 @@ module type Type = sig
 	(** Computes the effect of a guard on an abstract value. *)
 	val assume: Cabs.expression -> t -> t
 
+	val assume_back: Cabs.expression -> t -> t
+
 	(** Computes the effect of a list of parallel assignments on an abstract value. *)
 	val assign : (variable * Cabs.expression) list -> t -> t
 
@@ -43,6 +45,8 @@ module type Type = sig
 
 	(** Eliminates the given list of variables from the given abstract value.*)
 	val project: variable list -> t -> t
+
+	val proj_incl: t -> t -> t option
 
 	(** Minimizes the representation of the given abstract value. *)
   	val minimize : t -> t

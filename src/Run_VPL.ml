@@ -188,6 +188,8 @@ module VPL = struct
         let minimize x = x
 
         let assume e = assume (expr_to_cond e)
+
+		let assume_back e = assume_back (expr_to_cond e)
     end
 
     module TimedD = TimedDomain.Lift(D)
