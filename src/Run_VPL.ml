@@ -79,13 +79,13 @@ Arg.parse spec_list anon_fun usage_msg;;
 Flags.log_trace := false;;
 
 if !debug
-then
+then begin
 	Debugger.set_colors();
     Debugger.enable();
     Debugger.print_enable();
 	Profile.enable();
 	Profile.reset()
-;;
+end;;
 
 Printf.printf "Input file : %s\n" (!file);;
 

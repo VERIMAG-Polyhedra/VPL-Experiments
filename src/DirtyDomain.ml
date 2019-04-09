@@ -6,7 +6,7 @@ type state =
 module type Type = sig
     include TimedDomain.Type with type t = state
     val assume: string -> Cabs.expression -> t -> t
-    val assume_back: string -> Cabs.expression -> t -> t
+    val assume_back: string -> Cabs.expression -> t -> t option
     val assign : string -> (Domain.variable * Cabs.expression) list -> t -> t
     val meet : string -> t -> t -> t
     val join: string -> t -> t -> t
@@ -92,10 +92,11 @@ module Lift (D : TimedDomain.Type) : Type = struct
 		set (D.assume cond (value p2)) output_name;
         Name output_name
 
-    let assume_back : string -> Cabs.expression -> t -> t
-        = fun output_name cond p2 ->
-		set (D.assume_back cond (value p2)) output_name;
-        Name output_name
+    let assume_back : string -> Cabs.expression -> t -> t option
+        = fun output_name cond p ->
+        match D.assume_back cond (value p) with
+        | Some p -> (set p output_name; Some (Name output_name))
+        | None -> None
 
 	let assign : string -> (Domain.variable * Cabs.expression) list -> t -> t
         = fun output_name assigns p ->

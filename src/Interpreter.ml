@@ -263,8 +263,11 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| CALL (VARIABLE fun_name, [st;e]) when is_state st && not (is_state e) -> begin
             match fun_name with
 			| "guard" -> D.assume res_name e (parse_state st)
-			| "assume_back" -> D.assume_back res_name e (parse_state st)
 			| "assign" -> D.assign res_name [parse_assign e] (parse_state st)
+			| "assume_back" -> begin match D.assume_back res_name e (parse_state st) with
+                | Some res -> res
+                | None -> (parse_state st)
+                end
 			| _ -> invalid_arg "Unexpected function call with one abstract state"
 			end
 		| VARIABLE name -> DirtyDomain.Name name

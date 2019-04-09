@@ -12,5 +12,6 @@ void main(){
 	abs_value p2join2 = assume_back(p2join, x >= y);
 
 	abs_value p1join3 = assume_back(p1join2, x <= 2);
-	abs_value p2join3 = assume_back(p2join2, x <= 2);
+	// infeasible -> 
+	//abs_value p2join3 = assume_back(p2join2, x <= 2);
 }

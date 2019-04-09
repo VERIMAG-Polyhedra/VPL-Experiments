@@ -187,11 +187,20 @@ module Lift (D : Domain.Type) : Type = struct
         res
         end
 
+    let lift_option2 : ('a -> 'b -> t option) -> Timing.typ -> 'a -> 'b -> t option
+        = fun operator typ arg1 arg2 -> begin
+        let t_beg = Unix.gettimeofday () in
+		let res = operator arg1 arg2 in
+		let t_end = Unix.gettimeofday () in
+		Timing.record typ t_beg t_end;
+        res
+        end
+
     let meet = lift2 meet Timing.Assume
 
 	let assume = lift2 assume Timing.Assume
 
-    let assume_back = lift2 assume_back Timing.AssumeBack
+    let assume_back = lift_option2 assume_back Timing.AssumeBack
 
 	let join = lift2 join Timing.Join
 
@@ -201,13 +210,7 @@ module Lift (D : Domain.Type) : Type = struct
 
 	let project = lift2 project Timing.Project
 
-    let proj_incl p1 p2 = begin
-        let t_beg = Unix.gettimeofday () in
-        let res = proj_incl p1 p2 in
-        let t_end = Unix.gettimeofday () in
-        Timing.record Timing.ProjIncl t_beg t_end;
-        res
-    end
+    let proj_incl = lift_option2 proj_incl Timing.ProjIncl
 
 	let minimize = lift1 minimize Timing.Minimize
 end
