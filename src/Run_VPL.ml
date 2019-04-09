@@ -1,6 +1,9 @@
 open Vpl;;
 open Arg;;
 
+
+module Prof = Profile.Profile(struct let name = "VPL" end)
+
 (* *************************************** *)
 (* ************** Input file ************* *)
 (* *************************************** *)
@@ -65,6 +68,7 @@ module Cmd = struct
 		("-proj", String update_proj, "Projection algorithm (fm | plp)");
 		("-join", String update_join, "Join algorithm (barycentric | plp | plp_regions)");
 		("-min", String update_min, "Minimization algorithm (classic | raytracing)");
+		("-projincl", Bool (fun b -> Flags.smart_proj_incl := b), "Smart projinclusion");
 	]
 
 	let anon_fun s = failwith ("unsupported argument "^s);;
@@ -86,6 +90,9 @@ then begin
 	Profile.enable();
 	Profile.reset()
 end;;
+
+if String.length !file = 0
+then failwith "No input file provided";;
 
 Printf.printf "Input file : %s\n" (!file);;
 
@@ -257,7 +264,9 @@ try begin
 		Sys.set_signal Sys.sigalrm (Sys.Signal_handle timeout_handler)
 			end
 	end;
+	Prof.start "exec";
 	VPL.exec !file;
+	Prof.stop "exec";
 	Sys.set_signal Sys.sigalrm Sys.Signal_ignore;
 	let s = VPL.export_timings () in
 	print s;
