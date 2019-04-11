@@ -88,7 +88,10 @@ then begin
     Debugger.enable();
     Debugger.print_enable();
 	Profile.enable();
-	Profile.reset()
+	Profile.reset();
+	Min.Debug.disable();
+	PLP.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal]);
+	PSplx.Debug.disable() (*enable DebugTypes.([Title ; MInput ; MOutput ; Normal]);*)
 end;;
 
 if String.length !file = 0
