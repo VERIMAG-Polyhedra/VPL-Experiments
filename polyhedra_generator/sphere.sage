@@ -108,9 +108,14 @@ def fast_get_cstrs(n_cstrs, dim, nb_nzero, rayon):
 	else:
 		max_cstrs = 10^8
 
+	print("max_cstrs", max_cstrs)
+
 	cstrs = [get_vector(dim, nb_nzero, rayon) for i in range(n_cstrs)]
+	print(cstrs)
 	cstrs2 = [vector_to_cstr (cstr) for cstr in cstrs]
+	print(cstrs2)
 	P = Polyhedron(ieqs = cstrs2)
+	print(P)
 	if number_of_constraints(P) != n_cstrs:
 		print('Error with fast generation, switching to slow generation\n')
 		return get_cstrs(n_cstrs, dim, nb_nzero, rayon)

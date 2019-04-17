@@ -107,7 +107,7 @@ module Make (Man: sig
 		= fun env state ->
 		if Environment.compare env (Abstract1.env state) = 0
 		then state
-		else Abstract1.change_environment Man.manager state env false (* TODO: que fait se boolén?*)
+		else Abstract1.change_environment Man.manager state env false (* TODO: que fait ce booléen?*)
 
     let update_states state1 state2 =
 		let env1 = Abstract1.env state1
@@ -187,13 +187,37 @@ module Make (Man: sig
 
     module Interval = Interval
 
-    let itvize : t -> Cabs.expression -> Interval.t
-		= fun state t ->
+    let itvize : Cabs.expression -> t -> Interval.t
+		= fun t state ->
         let (e, vs) = Translate.arith_expr t in
 		let env = Translate.add_vars (Abstract1.env state) (Translate.Set.elements vs) in
 		let state = update_env env state in
 		Texpr1.of_expr env e
 		|> Abstract1.bound_texpr man state
+
+    let proj_incl : t -> t -> t option
+        = fun p1 p2 ->
+        let (_,env1) = Abstract1.env p1 |> Environment.vars
+        and (_,env2) = Abstract1.env p2 |> Environment.vars in
+        let vars_to_project = Array.fold_left (fun acc var ->
+            if Array.mem var env2
+            then acc
+            else var::acc
+        ) [] env1
+        |> List.map Apron.Var.to_string
+        in
+        Printf.sprintf "Eliminating variables %s"
+            (String.concat " ; " vars_to_project)
+            |> print_endline;
+        let p' = if vars_to_project = []
+            then p1
+            else project vars_to_project p1
+        in
+        if leq p2 p'
+        then Some p'
+        else None
+
+    let assume_back _ _ = failwith "assumeback"
 
     let print : t -> unit
 		= fun state ->
@@ -212,7 +236,6 @@ module RUN = struct
     module DirtyD = DirtyDomain.Lift(TimedD)
     include Interpreter.Lift(DirtyD)
 end
-
 
 open Arg;;
 

@@ -6,10 +6,10 @@ load("polyhedra_descriptor.py")
 load("sphere.sage")
 
 nb_polys = 1
-dimensions = [7]
-n_cstrs = [10]
+dimensions = [10]
+n_cstrs = [25]
 densities = [0.5]
-rayon = 20
+rayon = 100
 
 n = nb_polys * len(dimensions) * len(n_cstrs) * len(densities)
 print "\nGENERATION OF %i SPHERES" % n
@@ -26,6 +26,7 @@ for dimension in dimensions:
 
 					output_polyhedron_in("benchmark/", "sphere", P)
 
+n_cstrs = [50]
 dimensions = [5]
 rayon = 10
 
