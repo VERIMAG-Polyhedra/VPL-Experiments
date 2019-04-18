@@ -100,7 +100,10 @@ module Lift (D : Domain.Type) : Type = struct
 				Printf.sprintf
 				  "%s.%s%s"
 				  (Z.to_string !tInt)
-				  (Z.div !tDec (Z.of_int 10) |> Z.to_string)
+				  ((if Z.leq !tDec (Z.of_int 100)
+                   then "0"
+                   else "") ^
+                   (Z.div !tDec (Z.of_int 10) |> Z.to_string))
 				  (List.nth units !a);
 			end
 

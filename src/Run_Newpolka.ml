@@ -178,7 +178,9 @@ module Make (Man: sig
 		|> List.filter (Environment.mem_var (Abstract1.env state))
 		|> Array.of_list
 		in
-		Abstract1.forget_array man state vars true (* boolean = true -> projection ; boolean = false -> forget *)
+		let abs_proj = Abstract1.forget_array man state vars true in
+        Abstract1.forget_array man abs_proj vars false
+        (* boolean = true -> projection ; boolean = false -> forget *)
 
     let minimize : t -> t
         = fun state ->
@@ -195,6 +197,10 @@ module Make (Man: sig
 		Texpr1.of_expr env e
 		|> Abstract1.bound_texpr man state
 
+    let print : t -> unit
+		= fun state ->
+		Abstract1.print Format.std_formatter state
+
     let proj_incl : t -> t -> t option
         = fun p1 p2 ->
         let (_,env1) = Abstract1.env p1 |> Environment.vars
@@ -206,7 +212,7 @@ module Make (Man: sig
         ) [] env1
         |> List.map Apron.Var.to_string
         in
-        Printf.sprintf "Eliminating variables %s"
+        Printf.sprintf "Proj_incl: Eliminating variables %s"
             (String.concat " ; " vars_to_project)
             |> print_endline;
         let p' = if vars_to_project = []
@@ -218,10 +224,6 @@ module Make (Man: sig
         else None
 
     let assume_back _ _ = failwith "assumeback"
-
-    let print : t -> unit
-		= fun state ->
-		Abstract1.print Format.std_formatter state
 end
 
 module Polka_Loose = Make (struct

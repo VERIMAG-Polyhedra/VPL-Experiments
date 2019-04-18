@@ -223,6 +223,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			| _ -> false)
             -> true
         | CALL(VARIABLE "load", [CONSTANT (CONST_STRING _)]) -> true
+        | CALL(VARIABLE "print", [s]) -> is_state s
 		| VARIABLE name -> D.is_bound name
 		| _ -> false
 		)
@@ -237,6 +238,11 @@ module Lift (D : DirtyDomain.Type) : Type = struct
         = Cabs.(D.(match expr with
 		| CALL (VARIABLE "top", []) -> top
 		| CALL (VARIABLE "bot", []) -> bottom
+		| CALL (VARIABLE "print", [s]) -> begin
+            let p = parse_state s in
+            D.print p;
+            p
+        end
 		| CALL (VARIABLE "load", [CONSTANT (CONST_STRING file_name)]) ->
 			let cond = load file_name in
             D.assume res_name cond D.top
@@ -250,9 +256,10 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			D.project res_name vars (parse_state (List.hd args))
         | CALL (VARIABLE "projincl", [s1;s2]) when is_state s1 && is_state s2 ->
             begin
-            match D.proj_incl res_name (parse_state s1) (parse_state s2) with
+            let s1' = parse_state s1 in
+            match D.proj_incl res_name s1' (parse_state s2) with
             | Some res -> res
-            | None -> (print_endline "proj_incl: false" ; parse_state s1)
+            | None -> (print_endline "proj_incl: false" ; s1')
             end
 		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
             let f = match fun_name with
@@ -264,9 +271,11 @@ module Lift (D : DirtyDomain.Type) : Type = struct
             match fun_name with
 			| "guard" -> D.assume res_name e (parse_state st)
 			| "assign" -> D.assign res_name [parse_assign e] (parse_state st)
-			| "assume_back" -> begin match D.assume_back res_name e (parse_state st) with
+			| "assume_back" -> begin
+                let st' = parse_state st in
+                match D.assume_back res_name e st' with
                 | Some res -> res
-                | None -> (print_endline "assume_back: false" ; parse_state st)
+                | None -> (print_endline "assume_back: false" ; st')
                 end
 			| _ -> invalid_arg "Unexpected function call with one abstract state"
 			end
