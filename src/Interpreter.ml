@@ -252,7 +252,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
             begin
             match D.proj_incl res_name (parse_state s1) (parse_state s2) with
             | Some res -> res
-            | None -> (parse_state s1)
+            | None -> (print_endline "proj_incl: false" ; parse_state s1)
             end
 		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
             let f = match fun_name with
@@ -266,7 +266,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			| "assign" -> D.assign res_name [parse_assign e] (parse_state st)
 			| "assume_back" -> begin match D.assume_back res_name e (parse_state st) with
                 | Some res -> res
-                | None -> (parse_state st)
+                | None -> (print_endline "assume_back: false" ; parse_state st)
                 end
 			| _ -> invalid_arg "Unexpected function call with one abstract state"
 			end
