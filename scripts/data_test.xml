@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<Data>
+  <Trace>
+    abs_value P1 = guard(top(), %s);
+  </Trace>
+  <Instance>
+    <parameters>
+      <param i="0">x + y >= 1</param>
+    </parameters>
+    <Lib name="VPL">
+      <widen>0</widen>
+      <assume>0</assume>
+      <project>0</project>
+      <min>0</min>
+      <assign>0</assign>
+      <join>0</join>
+      <proj_incl>0</proj_incl>
+      <assume_back>0</assume_back>
+      <total>0</total>
+    </Lib>
+  </Instance>
+</Data>

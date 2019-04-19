@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<Libs>
+  <Lib name="VPL">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="omg">report</flag>
+      </flags>
+  </Lib>
+  <Lib name="Newpolka">
+      <exe>Run_Newpolka.byte</exe>
+      <flags>
+          <flag type="omg">report</flag>
+      </flags>
+  </Lib>
+</Libs>
