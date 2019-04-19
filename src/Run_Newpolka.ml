@@ -281,7 +281,7 @@ let print_res : string -> unit
 	match !output_file with
 	| None -> ()
 	| Some resFile ->
-		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
+		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_trunc] 0o640 (resFile) in
 		Pervasives.output_string chRes s;
 		Pervasives.close_out chRes
 ;;
@@ -314,6 +314,8 @@ try begin
 			end
 	end;
 	RUN.exec !file;
+    let s = RUN.export_timings () in
+	print_res s;
 	Sys.set_signal Sys.sigalrm Sys.Signal_ignore;
 with
 	| Timeout -> begin

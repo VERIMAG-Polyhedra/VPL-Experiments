@@ -1,4 +1,7 @@
+import os
 from typing import List
+from lib.utils import *
+
 import xml.etree.ElementTree as ET
 
 class Library:
@@ -46,8 +49,18 @@ class Library:
         return node
 
     def execution_string(self):
-        flags_string = ' '.join(['-%s %s' % (flag,value) for (flag,value) in self.flags.items()])
+        l = ['-%s' % flag if value is None else '-%s %s' % (flag,value) for (flag,value) in self.flags.items()]
+        flags_string = ' '.join(l)
         return '%s %s' % (self.executable, flags_string)
+
+    def run(self):
+        s = '../%s -file %s -folder %s -res %s' %(
+            self.execution_string(),
+            get_source_file(),
+            get_bench_folder(),
+            get_res_file())
+        print(s)
+        os.system(s)
 
 def import_libs(file: str) -> List[Library]:
     tree = ET.parse(file)
@@ -57,10 +70,3 @@ def import_libs(file: str) -> List[Library]:
         lib = Library(node = lib_node)
         libs[lib.name] = lib
     return libs
-
-def export(tree, file: str) -> None:
-    from xml.dom import minidom
-    root = tree.getroot()
-    xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="    ")
-    with open(file, "w") as f:
-        f.write(xmlstr)

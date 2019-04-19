@@ -91,8 +91,8 @@ then begin
 	Profile.reset();
 	Min.Debug.disable();
 	(*PLP.Debug.enable_all();*)
-	PLP.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal]);
-	PSplx.Debug.disable() (* DebugTypes.([Title ; MInput ; MOutput ; Normal]) *)
+	PLP.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal; Detail]);
+	PSplx.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal; Detail])
 end;;
 
 if String.length !file = 0
@@ -105,7 +105,7 @@ let print_res : string -> unit
 	match !output_file with
 	| None -> ()
 	| Some resFile ->
-		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
+		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_trunc] 0o640 (resFile) in
 		Pervasives.output_string chRes s;
 		Pervasives.close_out chRes
 ;;
@@ -274,6 +274,7 @@ try begin
 	Sys.set_signal Sys.sigalrm Sys.Signal_ignore;
 	let s = VPL.export_timings () in
 	print s;
+	print_res s;
 	Profile.report()
 	|> print;
 with

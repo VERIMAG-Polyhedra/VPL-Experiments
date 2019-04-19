@@ -1,4 +1,5 @@
 from lib.library import *
+from lib.utils import get_source_file
 
 class Parameters:
 
@@ -8,22 +9,22 @@ class Parameters:
     def __str__(self):
         return str(self.values)
 
-    def add(self, value):
+    def add(self, value) -> None:
         self.values.append(value)
 
-    def equal(self, params):
-        return self.values ==  params.values
+    def equal(self, params: 'Parameters') -> bool:
+        return self.values == params.values
 
-    def import_parameters(self, node):
+    def import_parameters(self, node: ET.ElementTree) -> None:
         l = sorted(list(node), key = lambda node: int(node.attrib['i']))
         for node in l:
             self.add(node.text)
 
-    def export(self):
-        node = ET.Element('parameters')
+    def export(self, parent_node: ET.ElementTree) -> None:
+        node = ET.SubElement(parent_node, 'parameters')
         for i in range(len(self.values)):
-            parameter_node = ET.SubElement(node, 'param', attrib = {'i' : i})
-            parameter_node.text = self.values[i]
+            parameter_node = ET.SubElement(node, 'param', attrib = {'i' : str(i)})
+            parameter_node.text = str(self.values[i])
         return node
 
     def instantiate(self, trace):
@@ -31,27 +32,23 @@ class Parameters:
 
 class Timings:
 
-    keys = [
-        'widen',
-        'assume',
-        'project',
-        'min',
-        'assign',
-        'join',
-        'proj_incl',
-        'assume_back',
-        'total'
-    ]
-
-    def __init__(self):
-        self.timings = {}
+    def __init__(self, from_res_file: bool = False):
+        self.timings = dict()
+        if from_res_file:
+            self.import_res()
 
     def __str__(self):
-        return '\n'.join(['%s -> %s' % (key, value) for (key, value) in self.timings.iteritems()])
+        return '\n'.join(['%s -> %s' % (key, value) for (key, value) in self.timings.items()])
 
     def import_timings(self, node: ET.ElementTree) -> None:
-        for key in Timings.keys:
-            self.timings[key] = node.find(key).text
+        for child in node:
+            if not ("unit" in child.attrib) or "ns" in child.attrib["unit"]:
+                self.timings[child.tag] = child.text
+
+    def import_res(self) -> None:
+        tree = ET.parse(get_res_file())
+        root = tree.getroot()
+        self.import_timings(root)
 
 class Instance:
 
@@ -62,7 +59,7 @@ class Instance:
     def __str__(self):
         return 'Instance: \nparameters:%s\nLIBS:\n%s' % (
             self.parameters,
-            '\n'.join(['%s -> %s' % (key, value) for (key, value) in self.libs.iteritems()]))
+            '\n'.join(['%s -> %s' % (key, value) for (key, value) in self.libs.items()]))
 
     def import_instance(self, node : ET.ElementTree) -> None:
         self.parameters.import_parameters(node.find('parameters'))
@@ -78,10 +75,28 @@ class Instance:
     def set_parameters(self, parameters: Parameters) -> None:
         self.parameters = parameters
 
-    def add(self, library, timings_node):
-        lib_node = library.export()
-        lib_node.append(timings)
-        this.append(lib_node)
+    def instantiate(self, trace):
+        return self.parameters.instantiate(trace)
+
+    def add_exp(self, lib: Library) -> None:
+        self.libs[lib.name] = Timings(True)
+        print(self)
+
+    def export(self, parent_node: ET.ElementTree) -> None:
+        self.parameters.export(parent_node)
+        for (lib_name, timings) in self.libs.items():
+            node = ET.SubElement(parent_node, 'Lib', attrib = {'name' : lib_name})
+            for (key, value) in timings.timings.items():
+                time_node = ET.SubElement(node, key)
+                time_node.text = value
+
+source_skeleton = '''typedef int abs_value;
+typedef int var;
+
+void main(){
+%s
+}
+'''
 
 class Data:
 
@@ -103,3 +118,27 @@ class Data:
             instance = Instance()
             instance.import_instance(instance_node)
             self.instances.append(instance)
+
+    def get_instance(self, params: Parameters) -> Instance:
+        for instance in self.instances:
+            if params.equal(instance.parameters):
+                return instance
+        ins = Instance()
+        ins.set_parameters(params)
+        self.instances.append(ins)
+        return ins
+
+    def make_source_file(self, params: Parameters) -> None:
+        s = source_skeleton % params.instantiate(self.trace)
+        f = open(get_source_file(), 'w')
+        f.write(s)
+        f.close()
+
+    def export(self, file: str) -> None:
+        node = ET.Element('Data')
+        trace_node = ET.SubElement(node, 'Trace')
+        trace_node.text = self.trace
+        for instance in self.instances:
+            instance_node = ET.SubElement(node, 'Instance')
+            instance.export(instance_node)
+        export(ET.ElementTree(node), get_data_file(file))

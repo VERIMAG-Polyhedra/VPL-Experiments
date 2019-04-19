@@ -1,15 +1,20 @@
 <?xml version="1.0" ?>
 <Libs>
-  <Lib name="VPL">
+  <Lib name="VPL2">
       <exe>Run_VPL.byte</exe>
       <flags>
-          <flag type="omg">report</flag>
+          <flag type="projincl">true</flag>
       </flags>
   </Lib>
   <Lib name="Newpolka">
       <exe>Run_Newpolka.byte</exe>
       <flags>
-          <flag type="omg">report</flag>
+      </flags>
+  </Lib>
+  <Lib name="VPL">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="projincl">false</flag>
       </flags>
   </Lib>
 </Libs>

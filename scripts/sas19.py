@@ -1,0 +1,26 @@
+from lib.library import *
+from lib.data import *
+from lib.utils import *
+import os
+
+data_file = get_data_file('sas19.xml')
+libs_file = get_libs_file()
+
+data = Data(data_file)
+libs = import_libs(libs_file)
+
+def make_parameters() -> Parameters:
+    params = Parameters()
+    params.add("P_7_20_0.1555054155670")
+    params.add("VAR1 >= -1 && VAR1 <= 1 && VAR2 >= -1 && VAR2 <= 1")
+
+    return params
+
+params = make_parameters()
+data.make_source_file(params)
+
+for (_,lib) in libs.items():
+    lib.run()
+    ins = data.get_instance(params)
+    ins.add_exp(lib)
+    data.export('sas19.xml')
