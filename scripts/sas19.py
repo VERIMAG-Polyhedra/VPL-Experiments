@@ -12,7 +12,7 @@ libs = import_libs(libs_file)
 
 def make_parameters() -> Parameters:
     params = Parameters()
-    params.add("P_7_20_0.1555054155670")
+    params.add("P_7_10_0.1554809760632")
     params.add("VAR1 >= -1 && VAR1 <= 1 && VAR2 >= -1 && VAR2 <= 1")
 
     return params
@@ -30,13 +30,13 @@ for (_,lib) in libs.items():
         ins.add_exp(lib)
 data.export('sas19.xml')
 
-abs = AbscissaChoice(Abscissa.CSTR, 0)
-abs.set(Abscissa.DIM, 0, 7)
+a = AbscissaChoice(Abscissa.CSTR, 0)
+a.set(Abscissa.DIM, 0, 7)
 ord = Ordinate.TOTAL
 g = Graph()
 
 for (_,lib) in libs.items():
-    c = Curve(lib, data, abs, ord)
+    c = Curve(lib, data, a, ord, color = random_color())
     print(lib.name, c.points)
     g.add_curve(c)
 

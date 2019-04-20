@@ -116,10 +116,10 @@ class Curve:
     def gather(self, data: Data, abs: AbscissaChoice, ord: Ordinate) -> None:
         for instance in data.instances:
             if abs.satisfy(instance):
-                abs = abs.value(instance)
+                x = abs.value(instance)
                 timings = instance.libs[self.lib.name]
-                ord = Curve.to_second(int(timings.timings[ord.tag()]))
-                self.points.append((abs, ord))
+                y = Curve.to_second(int(timings.timings[ord.tag()]))
+                self.points.append((x, y))
 
     @staticmethod
     def to_second(time: int) -> float:
@@ -154,7 +154,6 @@ class Graph:
     def __init__(self):
         plt.ylabel('Time in ms (logscale)')
         plt.yscale('log')
-        plt.legend(loc = 'best')
 
     def add_curve(self, curve: Curve) -> None:
         xs = [p[0] for p in curve.points]
@@ -163,4 +162,10 @@ class Graph:
         plt.xlabel(curve.abs.label())
 
     def show(self) -> None:
+        plt.legend(loc = 'best')
         plt.show()
+
+import random
+def random_color():
+	r = lambda: random.random()
+	return (r(),r(),r())
