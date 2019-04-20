@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <Libs>
-  <Lib name="VPL2">
+  <Lib name="VPL_PROJINCL">
       <exe>Run_VPL.byte</exe>
       <flags>
           <flag type="projincl">true</flag>

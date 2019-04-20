@@ -128,6 +128,13 @@ class Data:
         self.instances.append(ins)
         return ins
 
+    def instance_exist(self, params: Parameters, lib: Library) -> bool:
+        instance = self.get_instance(params)
+        for lib_name in instance.libs:
+            if lib.name == lib_name:
+                return True
+        return False
+
     def make_source_file(self, params: Parameters) -> None:
         s = source_skeleton % params.instantiate(self.trace)
         f = open(get_source_file(), 'w')
