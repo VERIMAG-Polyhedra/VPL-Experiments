@@ -6,6 +6,13 @@
           <flag type="projincl">true</flag>
       </flags>
   </Lib>
+  <Lib name="VPL_PROJINCL_debug">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="projincl">true</flag>
+          <flag type="debug"></flag>
+      </flags>
+  </Lib>
   <Lib name="Newpolka">
       <exe>Run_Newpolka.byte</exe>
       <flags>

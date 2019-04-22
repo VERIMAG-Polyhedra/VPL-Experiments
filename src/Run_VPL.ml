@@ -110,7 +110,6 @@ let print_res : string -> unit
 		Pervasives.close_out chRes
 ;;
 
-
 (* *************************************** *)
 (* *************** Timeout *************** *)
 (* *************************************** *)
@@ -215,22 +214,23 @@ module VPL = struct
 			Flags.plp := !flag_plp
 		end
 
-	(*
-	let to_xml : unit -> string
+	let export_timings : unit -> string
 		= fun () ->
-		let flags = [
-		mark "flag" (Some ("type","min")) (Flags.min_to_xml ());
-		mark "flag" (Some ("type","proj")) (Flags.proj_to_xml ());
-		mark "flag" (Some ("type","join")) (Flags.join_to_xml ());
-		mark "flag" (Some ("type","plp")) (Flags.plp_to_xml ());
-		mark "flag" (Some ("type","scalar")) (Flags.scalar_to_xml !flag_scalar);
-		mark "flag" (Some ("type","lp")) (Flags.lp_to_xml !flag_lp);
-		]
-		|> String.concat ""
-		|> mark "flags" None
-		and timings = Timing.to_xml() in
-		mark "Lib" (Some ("name","VPL")) (flags ^ timings)
+		Printf.sprintf "%s%s"
+			(TimedD.Timing.to_xml ())
+			([string_of_int !PLPIncremental.n_new
+			|> XMLOutput.mark "new_regions" None;
+			string_of_int !PLPIncremental.n_deleted
+			|> XMLOutput.mark "deleted_regions" None;
+			string_of_int !PLPIncremental.n_updated
+			|> XMLOutput.mark "updated_regions" None;
+			]
+			|> List.filter ((<>) "")
+			|> String.concat ""
+			)
+		|> XMLOutput.mark "timings" None
 
+	(*
 	let apply_timeout : unit -> string
 	  = fun () ->
 	  let flags = [

@@ -6,6 +6,10 @@
 module type Type = sig
     include Domain.Type
 
+    module Timing : sig
+        val to_xml : unit -> string
+    end
+
     val export_timings : unit -> string
 end
 

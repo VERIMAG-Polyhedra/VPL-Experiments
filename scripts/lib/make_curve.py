@@ -1,25 +1,10 @@
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import math
 from lib.utils import *
 from lib.data import *
 from enum import Enum
 from typing import Union
-
-class Abscissa(Enum):
-    CSTR = 2
-    RED = 3
-    DIM = 1
-    DENSITY = 5
-
-    def label(self):
-        if self == Abscissa.CSTR:
-            return 'Number of constraints'
-        elif self == Abscissa.RED:
-            return 'Redundancy rate'
-        elif self == Abscissa.DIM:
-            return 'Dimension'
-        elif self == Abscissa.DENSITY:
-            return 'Density rate'
 
 class Ordinate(Enum):
     TOTAL = 1
@@ -73,50 +58,46 @@ class Ordinate(Enum):
         elif self == Ordinate.WIDEN:
             return 'widen'
 
-class AbscissaChoice:
+class ParamChoice:
 
-    def __init__(self, abs: Abscissa, i_abs: int):
-        self.params = dict()
-        self.abs = abs
+    # i_abs: abscissa parameter
+    def __init__(self, i_abs: int, get_value):
+        self.get_values = dict()
         self.i_abs = i_abs
+        self.get_abs_value = get_value
 
-    def set(self, abs: Abscissa, i_param: int, value: Union[int, float]) -> None:
-        if i_param in self.params:
-            self.params[i_param][abs] = value
-        else:
-            self.params[i_param] = dict()
-            self.params[i_param][abs] = value
-
-    @staticmethod
-    def value_from_polyname(polyname: str, abs: Abscissa) -> float:
-        return float(polyname.split('_')[abs.value])
+    def set(self, i_param: int, get_value, value: Union[int, float]) -> None:
+        if i_param not in self.get_values:
+            self.get_values[i_param] = []
+        self.get_values[i_param].append((get_value, value))
 
     def satisfy(self, ins: Instance) -> bool:
         for i in range(len(ins.parameters.values)):
             param = ins.parameters.values[i]
-            if i in self.params:
-                for (abs, value) in self.params[i].items():
-                    if AbscissaChoice.value_from_polyname(param, abs) != value:
+            if i in self.get_values:
+                for (get_value, value) in self.get_values[i]:
+                    if get_value(param) != value:
                         return False
         return True
 
-    def value(self, ins: Instance):
+    def abs_value(self, ins: Instance):
         param = ins.parameters.values[self.i_abs]
-        return AbscissaChoice.value_from_polyname(param, self.abs)
+        return self.get_abs_value(param)
 
 class Curve:
 
-    def __init__(self, lib: Library, data: Data, abs: AbscissaChoice, ord: Ordinate, color = 'black'):
+    def __init__(self, lib: Library, data: Data, param_choice: ParamChoice, ord: Ordinate, color = 'black'):
         self.points = []
         self.color = color
         self.lib = lib
-        self.abs = abs.abs
-        self.gather(data, abs, ord)
+        self.gather(data, param_choice, ord)
+        self.sort()
+        self.stack()
 
-    def gather(self, data: Data, abs: AbscissaChoice, ord: Ordinate) -> None:
+    def gather(self, data: Data, param_choice: ParamChoice, ord: Ordinate) -> None:
         for instance in data.instances:
-            if abs.satisfy(instance):
-                x = abs.value(instance)
+            if param_choice.satisfy(instance):
+                x = param_choice.abs_value(instance)
                 timings = instance.libs[self.lib.name]
                 y = Curve.to_second(int(timings.timings[ord.tag()]))
                 self.points.append((x, y))
@@ -129,43 +110,50 @@ class Curve:
     def sort(self) -> None:
     	self.points = sorted(self.points)
 
+    @staticmethod
+    def make_point(x,ys):
+        n = len(ys)
+        mean = sum(ys) / n
+        sd = math.sqrt((1/n) * sum([(y - mean)**2 for y in ys]))
+        return (x, mean, sd)
+
     def stack(self) -> None:
         '''Stacks all points that share the same abscissa
         Requires a sorted list of points'''
         if self.points != []:
             points = []
-            (x_prec,y_stack) = self.points[0]
-            n_stack = 1
-            for (x,y) in curve['points'][1:]:
+            x_prec = self.points[0][0]
+            ys = [self.points[0][1]]
+            for (x,y) in self.points[1:]:
                 if x == x_prec:
-                    n_stack += 1
-                    y_stack += y
+                    ys.append(y)
                 else:
-                    points.append((x_prec,y_stack/n_stack))
-                    n_stack = 1
+                    points.append(Curve.make_point(x_prec,ys))
                     x_prec = x
-                    y_stack = y
+                    ys = [y]
             #last point :
-            points.append((x_prec,y_stack/n_stack))
+            points.append(Curve.make_point(x_prec,ys))
             self.points = points
 
 class Graph:
 
-    def __init__(self):
+    def __init__(self, label: str):
+        plt.xlabel(label)
         plt.ylabel('Time in ms (logscale)')
         plt.yscale('log')
 
     def add_curve(self, curve: Curve) -> None:
         xs = [p[0] for p in curve.points]
         ys = [p[1] for p in curve.points]
-        plt.plot(xs, ys, color = curve.color, label = curve.lib.name)
-        plt.xlabel(curve.abs.label())
+        es = [p[2] for p in curve.points]
+        plt.errorbar(xs, ys, es, color = curve.color, label = curve.lib.name)
 
     def show(self) -> None:
         plt.legend(loc = 'best')
         plt.show()
 
 import random
+random.seed(1)
 def random_color():
 	r = lambda: random.random()
 	return (r(),r(),r())

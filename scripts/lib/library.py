@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Dict
 from lib.utils import *
 
 import xml.etree.ElementTree as ET
@@ -62,7 +62,7 @@ class Library:
         print(s)
         os.system(s)
 
-def import_libs(file: str) -> List[Library]:
+def import_libs(file: str) -> Dict[str, Library]:
     tree = ET.parse(file)
     root = tree.getroot()
     libs = {}

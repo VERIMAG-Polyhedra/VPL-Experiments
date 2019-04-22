@@ -213,7 +213,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| CALL (VARIABLE fun_name, [s1;s2])
             when is_state s1 && is_state s2 &&
             (match fun_name with
-			| "meet" | "widen" | "join" | "projincl" -> true
+			| "meet" | "widen" | "join" | "projincl" | "assume_back_from" -> true
 			| _ -> false)
             -> true
         | CALL(VARIABLE fun_name, [st; e])
@@ -261,7 +261,18 @@ module Lift (D : DirtyDomain.Type) : Type = struct
             | Some res -> res
             | None -> (print_endline "proj_incl: false" ; s1')
             end
-		| CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
+        | CALL (VARIABLE
+                "assume_back_from", [
+                    st;
+                    CALL (VARIABLE "load", [CONSTANT (CONST_STRING file_name)])
+                ]) when is_state st ->
+            let st' = parse_state st in
+            let cond = load file_name in begin
+            match D.assume_back res_name cond st' with
+            | Some res -> res
+            | None -> (print_endline "assume_back: false" ; st')
+            end
+        | CALL (VARIABLE fun_name, [s1;s2]) when is_state s1 && is_state s2 ->
             let f = match fun_name with
 			| "meet" -> D.meet | "widen" -> D.widen | "join" -> D.join
 			| _ -> invalid_arg "Unexpected function call with two abstract states"
