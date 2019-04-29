@@ -224,6 +224,8 @@ module VPL = struct
 			|> XMLOutput.mark "deleted_regions" None;
 			string_of_int !PLPIncremental.n_updated
 			|> XMLOutput.mark "updated_regions" None;
+			string_of_int !PLPIncremental.n_total
+			|> XMLOutput.mark "total_regions" None;
 			]
 			|> List.filter ((<>) "")
 			|> String.concat ""

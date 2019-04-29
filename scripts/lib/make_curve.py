@@ -16,6 +16,10 @@ class Ordinate(Enum):
     ASSIGN = 7
     MIN = 8
     WIDEN = 9
+    NEW_REGIONS = 10
+    DELETED_REGIONS = 11
+    UPDATED_REGIONS = 12
+    TOTAL_REGIONS = 13
 
     def label(self) -> str:
         if self == Ordinate.TOTAL:
@@ -36,7 +40,14 @@ class Ordinate(Enum):
             return 'Minimization'
         elif self == Ordinate.WIDEN:
             return 'Widening'
-
+        elif self == Ordinate.NEW_REGIONS:
+            return 'New regions'
+        elif self == Ordinate.DELETED_REGIONS:
+            return 'Deleted regions'
+        elif self == Ordinate.UPDATED_REGIONS:
+            return 'Updated regions'
+        elif self == Ordinate.TOTAL_REGIONS:
+            return 'Total number of regions'
 
     def tag(self) -> str:
         if self == Ordinate.TOTAL:
@@ -57,6 +68,14 @@ class Ordinate(Enum):
             return 'min'
         elif self == Ordinate.WIDEN:
             return 'widen'
+        elif self == Ordinate.NEW_REGIONS:
+            return 'new_regions'
+        elif self == Ordinate.DELETED_REGIONS:
+            return 'deleted_regions'
+        elif self == Ordinate.UPDATED_REGIONS:
+            return 'updated_regions'
+        elif self == Ordinate.TOTAL_REGIONS:
+            return 'total_regions'
 
 class ParamChoice:
 
@@ -84,13 +103,26 @@ class ParamChoice:
         param = ins.parameters.values[self.i_abs]
         return self.get_abs_value(param)
 
+    def copy_from(self, p2: 'ParamChoice') -> None:
+        self.get_values = dict(p2.get_values)
+
+def to_seconds(time: int) -> float:
+    '''Translates a time from ns to s'''
+    return float(time)/float(pow(10,9))
+
 class Curve:
 
-    def __init__(self, lib: Library, data: Data, param_choice: ParamChoice, ord: Ordinate, color = 'black'):
+    def __init__(self, lib: Library, data: Data, param_choice: ParamChoice, ord: Ordinate, color = 'black', to_seconds = False, label = None):
         self.points = []
         self.color = color
         self.lib = lib
+        if label is None:
+            self.label = ord.label()
+        else:
+            self.label = label
         self.gather(data, param_choice, ord)
+        if to_seconds:
+            self.to_seconds()
         self.sort()
         self.stack()
 
@@ -99,16 +131,14 @@ class Curve:
             if param_choice.satisfy(instance):
                 x = param_choice.abs_value(instance)
                 timings = instance.libs[self.lib.name]
-                y = Curve.to_second(int(timings.timings[ord.tag()]))
+                y = int(timings.timings[ord.tag()])
                 self.points.append((x, y))
-
-    @staticmethod
-    def to_second(time: int) -> float:
-        '''Translates a time from ns to s'''
-        return float(time)/float(pow(10,9))
 
     def sort(self) -> None:
     	self.points = sorted(self.points)
+
+    def to_seconds(self) -> None:
+        self.points = [(x, to_seconds(y)) for (x,y) in self.points]
 
     @staticmethod
     def make_point(x,ys):
@@ -137,19 +167,62 @@ class Curve:
 
 class Graph:
 
-    def __init__(self, label: str):
-        plt.xlabel(label)
-        plt.ylabel('Time in ms (logscale)')
-        plt.yscale('log')
+    def __init__(self, xlabel = 'No label',
+        ylabel = 'Execution Time (in seconds)'):
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        #plt.yscale('log')
 
-    def add_curve(self, curve: Curve) -> None:
+    def add_curve(self, curve: Curve, label = None, linestyle = '-') -> None:
         xs = [p[0] for p in curve.points]
         ys = [p[1] for p in curve.points]
         es = [p[2] for p in curve.points]
-        plt.errorbar(xs, ys, es, color = curve.color, label = curve.lib.name)
+        if label is None:
+            label = curve.lib.name
+        plt.errorbar(xs, ys, es, label = label, color = curve.color, linestyle = linestyle)
 
     def show(self) -> None:
         plt.legend(loc = 'best')
+        plt.show()
+
+import numpy
+class Histogram:
+
+    def __init__(self, xlabel = 'no label',
+        ylabel = 'no label'):
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        self.curves = []
+        self.hatches = []
+
+    def add_curve(self, curve: Curve, hatch = None) -> None:
+        self.curves.append(curve)
+        self.hatches.append(hatch)
+
+    def show(self):
+        xs = numpy.array([p[0] for p in self.curves[0].points])
+        ys = [numpy.array([int(p[1]) for p in curve.points]) for curve in self.curves]
+        for i in range(len(ys)):
+            b = []
+            if i + 1 < len(ys):
+                b = ys[i+1]
+                for j in range(i+2,len(ys)):
+                    b = b + ys[j]
+            if b == []:
+                plt.bar(xs, ys[i], color = self.curves[i].color,
+                label = self.curves[i].label,
+                hatch = self.hatches[i],
+                linewidth = 1,
+                edgecolor = 'black')
+            else:
+                plt.bar(xs, ys[i], color = self.curves[i].color,
+                bottom = b,
+                label = self.curves[i].label,
+                hatch = self.hatches[i],
+                linewidth = 1,
+                edgecolor = 'black')
+
+        plt.legend(loc="best")
         plt.show()
 
 import random

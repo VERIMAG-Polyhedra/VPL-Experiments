@@ -4,6 +4,7 @@
       <exe>Run_VPL.byte</exe>
       <flags>
           <flag type="projincl">true</flag>
+          <flag type="proj">plp</flag>
       </flags>
   </Lib>
   <Lib name="VPL_PROJINCL_debug">
@@ -22,6 +23,7 @@
       <exe>Run_VPL.byte</exe>
       <flags>
           <flag type="projincl">false</flag>
+          <flag type="proj">plp</flag>
       </flags>
   </Lib>
 </Libs>
