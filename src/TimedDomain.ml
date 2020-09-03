@@ -3,6 +3,10 @@ open XMLOutput
 module type Type = sig
     include Domain.Type
 
+    module Timing : sig
+        val to_xml : unit -> string
+    end
+
     val export_timings : unit -> string
 end
 
@@ -143,10 +147,10 @@ module Lift (D : Domain.Type) : Type = struct
 			time_to_xml "join" !t_ref.join;
 			time_to_xml "proj_incl" !t_ref.proj_incl;
 			time_to_xml "assume_back" !t_ref.assume_back;
-			time_to_xml "total" (total ())]
+			time_to_xml "total" (total ())
+            ]
 			|> List.filter ((<>) "")
 			|> String.concat ""
-			|> mark "timings" None
 
 		let timeout' : string -> string
 			= fun s ->
@@ -168,7 +172,7 @@ module Lift (D : Domain.Type) : Type = struct
 			|> mark "timings" None
 	end
 
-    let export_timings = Timing.to_xml
+    let export_timings _ = mark "timings" None (Timing.to_xml ())
 
     include D
 

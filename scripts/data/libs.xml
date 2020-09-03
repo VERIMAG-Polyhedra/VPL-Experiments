@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<Libs>
+  <Lib name="VPL_PROJINCL">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="projincl">true</flag>
+          <flag type="proj">plp</flag>
+      </flags>
+  </Lib>
+  <Lib name="VPL_PROJINCL_debug">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="projincl">true</flag>
+          <flag type="debug"></flag>
+      </flags>
+  </Lib>
+  <Lib name="Newpolka">
+      <exe>Run_Newpolka.byte</exe>
+      <flags>
+      </flags>
+  </Lib>
+  <Lib name="VPL">
+      <exe>Run_VPL.byte</exe>
+      <flags>
+          <flag type="projincl">false</flag>
+          <flag type="proj">plp</flag>
+      </flags>
+  </Lib>
+</Libs>

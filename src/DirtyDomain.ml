@@ -19,6 +19,8 @@ end
 
 module Lift (D : TimedDomain.Type) : Type = struct
 
+    module Timing = D.Timing
+    
     (** Map indexed by strings. *)
     module MapS = Map.Make(struct type t = string let compare = Stdlib.compare end)
 

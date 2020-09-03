@@ -5,10 +5,10 @@
 load("polyhedra_descriptor.py")
 load("sphere.sage")
 
-nb_polys = 1
-dimensions = [7]
-n_cstrs = [20]
-densities = [0.5]
+nb_polys = 50
+dimensions = range(2,10)
+n_cstrs = range(1,30)
+densities = [0.75]
 rayon = 100
 
 n = nb_polys * len(dimensions) * len(n_cstrs) * len(densities)

@@ -82,8 +82,8 @@ then begin
 	Profile.reset();
 	Min.Debug.disable();
 	(*PLP.Debug.enable_all();*)
-	PLP.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal]);
-	PSplx.Debug.disable() (* DebugTypes.([Title ; MInput ; MOutput ; Normal]) *)
+	PLP.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal; Detail]);
+	PSplx.Debug.enable DebugTypes.([Title ; MInput ; MOutput ; Normal; Detail])
 end;;
 
 if String.length !file = 0
@@ -96,11 +96,10 @@ let print_res : string -> unit
 	match !output_file with
 	| None -> ()
 	| Some resFile ->
-		let chRes = Stdlib.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
-		Stdlib.output_string chRes s;
-		Stdlib.close_out chRes
+		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_trunc] 0o640 (resFile) in
+		Pervasives.output_string chRes s;
+		Pervasives.close_out chRes
 ;;
-
 
 (* *************************************** *)
 (* *************** Timeout *************** *)
@@ -205,22 +204,25 @@ module VPL = struct
 			Flags.plp := !flag_plp
 		end
 
-	(*
-	let to_xml : unit -> string
+	let export_timings : unit -> string
 		= fun () ->
-		let flags = [
-		mark "flag" (Some ("type","min")) (Flags.min_to_xml ());
-		mark "flag" (Some ("type","proj")) (Flags.proj_to_xml ());
-		mark "flag" (Some ("type","join")) (Flags.join_to_xml ());
-		mark "flag" (Some ("type","plp")) (Flags.plp_to_xml ());
-		mark "flag" (Some ("type","scalar")) (Flags.scalar_to_xml !flag_scalar);
-		mark "flag" (Some ("type","lp")) (Flags.lp_to_xml !flag_lp);
-		]
-		|> String.concat ""
-		|> mark "flags" None
-		and timings = Timing.to_xml() in
-		mark "Lib" (Some ("name","VPL")) (flags ^ timings)
+		Printf.sprintf "%s%s"
+			(TimedD.Timing.to_xml ())
+			([string_of_int !PLPIncremental.n_new
+			|> XMLOutput.mark "new_regions" None;
+			string_of_int !PLPIncremental.n_deleted
+			|> XMLOutput.mark "deleted_regions" None;
+			string_of_int !PLPIncremental.n_updated
+			|> XMLOutput.mark "updated_regions" None;
+			string_of_int !PLPIncremental.n_total
+			|> XMLOutput.mark "total_regions" None;
+			]
+			|> List.filter ((<>) "")
+			|> String.concat ""
+			)
+		|> XMLOutput.mark "timings" None
 
+	(*
 	let apply_timeout : unit -> string
 	  = fun () ->
 	  let flags = [
@@ -264,6 +266,7 @@ try begin
 	Sys.set_signal Sys.sigalrm Sys.Signal_ignore;
 	let s = VPL.export_timings () in
 	print s;
+	print_res s;
 	Profile.report()
 	|> print;
 with

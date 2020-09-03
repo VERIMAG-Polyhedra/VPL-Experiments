@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<Data>
+  <Trace>
+      abs_value P1 = load("%s");
+      abs_value P2 = guard(top(), %s);
+
+      abs_value P3 = projincl(P1, P2);
+  </Trace>
+</Data>
