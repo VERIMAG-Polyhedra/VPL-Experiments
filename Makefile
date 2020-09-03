@@ -15,9 +15,10 @@ sanity:
 	ocamlfind query zarith
 	ocamlfind query unix
 	ocamlfind query FrontC
+	ocamlfind query vpl-core
 
 vpl : sanity
-	$(OCB) -package vpl -package FrontC Run_VPL.byte
+	$(OCB) -package vpl-core -package FrontC Run_VPL.byte
 
 newpolka : sanity
 	$(OCB) -package zarith -package apron -package apron.polkaMPQ -package FrontC Run_Newpolka.byte

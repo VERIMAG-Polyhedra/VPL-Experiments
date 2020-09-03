@@ -45,7 +45,7 @@ module Translate = struct
             and (e2', vs2) = arith_expr e2 in
             let vs = Set.union vs1 vs2 in
             (E.Binop (E.Sub, e1', e2', typ, rnd), vs)
-		| _ -> Pervasives.raise Out_of_Scope
+		| _ -> Stdlib.raise Out_of_Scope
 		)
 
     let add_vars : Apron.Environment.t -> Apron.Var.t list -> Apron.Environment.t
@@ -76,7 +76,7 @@ module Translate = struct
     		| Cabs.GT -> Apron.Tcons1.make expr Apron.Tcons1.SUP
     		| Cabs.EQ -> Apron.Tcons1.make expr Apron.Tcons1.EQ
     		| Cabs.NE -> Apron.Tcons1.make expr Apron.Tcons1.DISEQ
-            | _ -> Pervasives.raise Out_of_Scope)
+            | _ -> Stdlib.raise Out_of_Scope)
         in
         (cons, env)
 end
@@ -150,7 +150,7 @@ module Make (Man: sig
             |> assume e2
         | BINARY (OR, e1, e2) | BINARY (BOR, e1, e2)  ->
             join (assume e1 state) (assume e2 state)
-        | _ -> Pervasives.raise Out_of_Scope
+        | _ -> Stdlib.raise Out_of_Scope
         )
 
     let assign : (Domain.variable * Cabs.expression) list -> t -> t
@@ -281,9 +281,9 @@ let print_res : string -> unit
 	match !output_file with
 	| None -> ()
 	| Some resFile ->
-		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
-		Pervasives.output_string chRes s;
-		Pervasives.close_out chRes
+		let chRes = Stdlib.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
+		Stdlib.output_string chRes s;
+		Stdlib.close_out chRes
 ;;
 
 (* *************************************** *)
@@ -293,7 +293,7 @@ let print_res : string -> unit
 exception Timeout
 
 let timeout_handler : int -> unit
-  =	fun _ -> Pervasives.raise Timeout
+  =	fun _ -> Stdlib.raise Timeout
 
 (* *************************************** *)
 (* ************** Execution ************** *)
@@ -309,7 +309,7 @@ try begin
 	match !time_budget with
 	| None -> ()
 	| Some i -> begin
-		Pervasives.ignore (Unix.alarm i);
+		Stdlib.ignore (Unix.alarm i);
 		Sys.set_signal Sys.sigalrm (Sys.Signal_handle timeout_handler)
 			end
 	end;

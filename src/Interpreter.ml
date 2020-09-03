@@ -105,7 +105,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 				else VARIABLE v
 			| UNARY (op, e) -> UNARY (op, replace_variables e)
 			| BINARY (op, e1, e2) -> BINARY (op, replace_variables e1, replace_variables e2)
-			| _ -> Pervasives.invalid_arg "replace_variables"
+			| _ -> Stdlib.invalid_arg "replace_variables"
 			)
 		in
 		fun file_name ->
@@ -116,13 +116,13 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		let id = substring file_name (ri+1) in
 		let name = String.sub file_name 0 ri in
 		let file = Printf.sprintf "%s/%s.vpl" !folder name in
-		let in_ch = Pervasives.open_in file in
+		let in_ch = Stdlib.open_in file in
 		let poly = ref []
 		and register = ref false in
 		(* Skip polyhedron name *)
 		try
 			while true do
-				let s = Pervasives.input_line in_ch in
+				let s = Stdlib.input_line in_ch in
 				if is_the_poly id s
 				then begin
 					poly := [file_name];
@@ -130,11 +130,11 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 				end
 				else if !register
 					then if String.length s > 0 && String.get s 0 = 'P'
-						then Pervasives.raise End_of_file
+						then Stdlib.raise End_of_file
 						else if not(String.equal s "")
 							then poly := s :: !poly
 			done;
-			Pervasives.failwith "Trace_reader.load"
+			Stdlib.failwith "Trace_reader.load"
 		with End_of_file -> begin
 			let s = List.rev !poly
 				|> String.concat "\n" in
@@ -169,7 +169,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
     		| Float (Some f1), Float (Some f2) -> Float (Some (float_op f1 f2))
     		| Int (Some i1), Float (Some f2) -> Float (Some (float_op (float_of_int i1) f2))
     		| Float (Some f1), Int (Some i2) -> Float (Some (float_op f1 (float_of_int i2)))
-    		| _-> Pervasives.failwith "Value.op: unexpected None value"
+    		| _-> Stdlib.failwith "Value.op: unexpected None value"
 
 		let add = op (+) (+.)
 
@@ -188,7 +188,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			| Float (Some f1), Float (Some f2) -> float_op f1 f2
 			| Int (Some i1), Float (Some f2) -> float_op (float_of_int i1) f2
 			| Float (Some f1), Int (Some i2) -> float_op f1 (float_of_int i2)
-			| _-> Pervasives.failwith "Value.bop: unexpected None value"
+			| _-> Stdlib.failwith "Value.bop: unexpected None value"
 
 		let le = bop (<=) (<=)
 		let lt = bop (<) (<)
@@ -198,7 +198,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		let neq = bop (<>) (<>)
 	end
 
-    module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
+    module MapS = Map.Make(struct type t = string let compare = Stdlib.compare end)
 
 	type mem = Value.t MapS.t
 
@@ -231,7 +231,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
     let parse_assign : Cabs.expression -> (Domain.variable * Cabs.expression)
 		= Cabs.(function
 		| BINARY (ASSIGN, (VARIABLE var), e) -> (var, e)
-		| _ -> Pervasives.failwith "Unexpected assignment"
+		| _ -> Stdlib.failwith "Unexpected assignment"
 		)
 
 	let rec parse_state ?res_name:(res_name="VPL_RESERVED") expr
@@ -296,7 +296,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 		| BINARY (ASSIGN, VARIABLE var, e) -> (var, e)
 		| UNARY (POSINCR, VARIABLE var) -> (var, BINARY (ADD, VARIABLE var, CONSTANT (CONST_INT "1")))
 		| UNARY (POSDECR, VARIABLE var) -> (var, BINARY (SUB, VARIABLE var, CONSTANT (CONST_INT "1")))
-		| _ -> Pervasives.invalid_arg "parse_computation"
+		| _ -> Stdlib.invalid_arg "parse_computation"
 		)
 
 	let rec eval_aexpr : mem -> Cabs.expression -> Value.t
@@ -308,9 +308,9 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 				match MapS.find name mem with
 				| Value.Int (Some i) -> Value.Float (Some (float_of_int i))
 				| Value.Float (Some f) -> Value.Float (Some f)
-				| Value.Int None | Value.Float None -> Pervasives.failwith ("Variable " ^ name ^ " is used but not initialized")
+				| Value.Int None | Value.Float None -> Stdlib.failwith ("Variable " ^ name ^ " is used but not initialized")
 			with Not_found ->
-				Pervasives.failwith ("Variable " ^ name ^ " is not declared")
+				Stdlib.failwith ("Variable " ^ name ^ " is not declared")
 			end
 		| UNARY (PLUS, e) -> eval_aexpr mem e
 		| UNARY (MINUS, e) -> Value.opp (eval_aexpr mem e)
@@ -347,7 +347,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 	let rec eval_bexpr : mem -> Cabs.expression -> bool
 		= fun mem -> Cabs.(function
 		| UNARY (NOT, e) -> not (eval_bexpr mem e)
-		| UNARY (_, _) -> Pervasives.failwith "eval_bexpr: Unexpected unary expression"
+		| UNARY (_, _) -> Stdlib.failwith "eval_bexpr: Unexpected unary expression"
 		| BINARY (AND, e1, e2) -> (eval_bexpr mem e1) && (eval_bexpr mem e2)
 		| BINARY (BAND, e1, e2) -> (eval_bexpr mem e1) && (eval_bexpr mem e2)
 		| BINARY (OR, e1, e2) -> (eval_bexpr mem e1) || (eval_bexpr mem e2)
@@ -362,7 +362,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 			D.leq (parse_state e2) (parse_state e1)
         | CALL (VARIABLE "isBottom", [e]) when is_state e ->
             D.is_bottom (parse_state e)
-		| _ -> Pervasives.failwith "Unexpected boolean expression"
+		| _ -> Stdlib.failwith "Unexpected boolean expression"
 		)
 
 	let update_mem : mem -> Domain.variable -> Cabs.expression -> mem
@@ -381,7 +381,7 @@ module Lift (D : DirtyDomain.Type) : Type = struct
 						(fun mem (name,_,_,e) ->
 						match eval_aexpr mem e with
 						| Value.Int i -> MapS.add name (Value.Int i) mem
-						| Value.Float _ -> Pervasives.failwith ("Variable " ^ name ^ " is declared as int but is given a float value")
+						| Value.Float _ -> Stdlib.failwith ("Variable " ^ name ^ " is declared as int but is given a float value")
 						)
 						mem names
 				| Cabs.DECDEF(Cabs.FLOAT _, _, names) ->
@@ -456,9 +456,9 @@ module Lift (D : DirtyDomain.Type) : Type = struct
     let exec : string -> unit
 		= fun file_name ->
 		(* Parsing file *)
-		let defs = match Frontc.parse_file file_name Pervasives.stdout with
+		let defs = match Frontc.parse_file file_name Stdlib.stdout with
 		| Frontc.PARSING_ERROR ->
-		 	Pervasives.failwith "FrontC Parsing Error"
+		 	Stdlib.failwith "FrontC Parsing Error"
 		| Frontc.PARSING_OK defs -> defs
 		in
 		let main_fun = List.find (function

@@ -23,9 +23,6 @@ module Cmd = struct
 
 	let flag_scalar = ref Flags.Rat
 
-	(* These flags are functions as they depend on the value of flag_scalar or flag_lp. *)
-	let flag_min = ref (fun () -> Flags.Classic)
-
 	let flag_proj = ref (fun () -> Flags.FM)
 
 	let flag_join = ref (fun () -> Flags.Baryc)
@@ -52,11 +49,6 @@ module Cmd = struct
 		| "plp_regions" -> flag_join := (fun () -> Flags.Join_fromRegions)
 		| _ -> invalid_arg "update_join"
 
-	let update_min = function
-		| "classic" -> flag_min := (fun () -> Flags.Classic)
-		| "raytracing" -> flag_min := (fun () -> Flags.Raytracing)
-		| _ -> invalid_arg "update_min"
-
 	let spec_list = [
 		("-file", String (fun s -> file:=s), Printf.sprintf "<file> input file (default=%s)" !file);
 		("-res", String (fun s -> output_file:= Some s),"<file> output file (default=None)");
@@ -67,7 +59,6 @@ module Cmd = struct
 		("-scalar", String update_scalar, "Scalar type (rat | symb | float)");
 		("-proj", String update_proj, "Projection algorithm (fm | plp)");
 		("-join", String update_join, "Join algorithm (barycentric | plp | plp_regions)");
-		("-min", String update_min, "Minimization algorithm (classic | raytracing)");
 		("-projincl", Bool (fun b -> Flags.smart_proj_incl := b), "Smart projinclusion");
 	]
 
@@ -105,9 +96,9 @@ let print_res : string -> unit
 	match !output_file with
 	| None -> ()
 	| Some resFile ->
-		let chRes = Pervasives.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
-		Pervasives.output_string chRes s;
-		Pervasives.close_out chRes
+		let chRes = Stdlib.open_out_gen [Open_creat ; Open_wronly ; Open_append] 0o640 (resFile) in
+		Stdlib.output_string chRes s;
+		Stdlib.close_out chRes
 ;;
 
 
@@ -118,7 +109,7 @@ let print_res : string -> unit
 exception Timeout
 
 let timeout_handler : int -> unit
-  =	fun _ -> Pervasives.raise Timeout
+  =	fun _ -> Stdlib.raise Timeout
 
 (* *************************************** *)
 (* *************** Modules *************** *)
@@ -130,7 +121,7 @@ open I
 
 module Ident = Lift_Ident (struct
     type t = string
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
     let to_string s = s
     end)
 
@@ -152,7 +143,7 @@ module Expr = struct
             Ident.addVars [var_name];
             Var (Ident.toVar var_name)
 			end
-		| _ -> Pervasives.raise Out_of_Scope
+		| _ -> Stdlib.raise Out_of_Scope
 		))
 
     let rec of_term : Term.t -> t
@@ -166,12 +157,12 @@ module Expr = struct
         | Mul(t1, t2) -> BINARY(MUL, of_term t1, of_term t2)
         | Prod [t] -> of_term t
         | Prod (t :: ts) -> BINARY(MUL, of_term t, of_term (Prod ts))
-        | _ -> Pervasives.raise Out_of_Scope))
+        | _ -> Stdlib.raise Out_of_Scope))
 end
 
 module VPL = struct
     module D = struct
-        include MakeCustom(Vpl.Domains.UnitQ)(Ident)(Expr)
+        include MakeCustom(Vpl.Domains.UncertifiedQ)(Ident)(Expr)
 
         module Interval = NCDomain.NCVPL_Unit.I.QInterface.Interval
 
@@ -189,7 +180,7 @@ module VPL = struct
     		| Cabs.BINARY (Cabs.LT, e1, e2) -> Atom (e1, Cstr_type.LT, e2)
     		| Cabs.BINARY (Cabs.GT, e1, e2) -> Atom (e1, Cstr_type.GT, e2)
     		| Cabs.BINARY (Cabs.GE, e1, e2) -> Atom (e1, Cstr_type.GE, e2)
-            | _ -> Pervasives.raise Out_of_Scope
+            | _ -> Stdlib.raise Out_of_Scope
 
         let name = "VPL"
 
@@ -209,7 +200,6 @@ module VPL = struct
 
 	let apply_flags = fun () ->
 		begin
-			Flags.min := !flag_min ();
 			Flags.proj := !flag_proj ();
 			Flags.join := !flag_join ();
 			Flags.plp := !flag_plp
@@ -264,7 +254,7 @@ try begin
 	match !time_budget with
 	| None -> ()
 	| Some i -> begin
-		Pervasives.ignore (Unix.alarm i);
+		Stdlib.ignore (Unix.alarm i);
 		Sys.set_signal Sys.sigalrm (Sys.Signal_handle timeout_handler)
 			end
 	end;

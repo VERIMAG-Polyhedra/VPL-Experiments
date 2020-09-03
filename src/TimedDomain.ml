@@ -12,7 +12,7 @@ module Time = struct
     let zero = 0.
     let add = (+.)
     let sub = (-.)
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
     let toZ x = x *. 10.0**9.0 |> Z.of_float
 end
 
@@ -60,7 +60,7 @@ module Lift (D : Domain.Type) : Type = struct
 			= fun typ tbeg tend ->
 			let time = Time.sub tend tbeg in
 			if Time.compare Time.zero time > 0
-			then Pervasives.failwith "negative time"
+			then Stdlib.failwith "negative time"
 			else match typ with
 				| Assume -> t_ref := {!t_ref with assume = Z.add !t_ref.assume (Time.toZ time)}
                 | AssumeBack -> t_ref := {!t_ref with assume_back = Z.add !t_ref.assume_back (Time.toZ time)}
@@ -80,10 +80,10 @@ module Lift (D : Domain.Type) : Type = struct
 		let prTime : Z.t -> string
 			= fun t0 ->
 			let units = ["ns"; "us"; "ms"; "s" ; "ks" ; "Ms" ; "Bs"] in
-			let a = Pervasives.ref 0 in
-			let tInt = Pervasives.ref t0 in
-			let tDec = Pervasives.ref Z.zero in
-			let b = Pervasives.ref true in
+			let a = Stdlib.ref 0 in
+			let tInt = Stdlib.ref t0 in
+			let tDec = Stdlib.ref Z.zero in
+			let b = Stdlib.ref true in
 			begin
 				while !b && !a < List.length units
 				do

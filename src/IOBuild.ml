@@ -30,7 +30,7 @@ let mk : (Q.t list * cmp) list -> t
 	let dim = dim c in
 	let r = mkRaw dim c in
 	if isValid r then r
-	else Pervasives.invalid_arg "IOBuild.mk"
+	else invalid_arg "IOBuild.mk"
 
 let cmp_to_cabs : cmp -> Cabs.binary_operator
 	= Cabs.(function

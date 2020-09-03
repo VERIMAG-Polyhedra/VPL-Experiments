@@ -20,7 +20,7 @@ end
 module Lift (D : TimedDomain.Type) : Type = struct
 
     (** Map indexed by strings. *)
-    module MapS = Map.Make(struct type t = string let compare = Pervasives.compare end)
+    module MapS = Map.Make(struct type t = string let compare = Stdlib.compare end)
 
 	(* Map associating abstract values to their name. *)
 	let mapVal : D.t MapS.t ref = ref MapS.empty
@@ -33,7 +33,7 @@ module Lift (D : TimedDomain.Type) : Type = struct
         = fun s ->
         try
             MapS.find s !mapVal
-        with Not_found -> Pervasives.invalid_arg (Printf.sprintf "Run_Domain.get %s : %s" D.name s)
+        with Not_found -> Stdlib.invalid_arg (Printf.sprintf "Run_Domain.get %s : %s" D.name s)
 
     let is_bound : string -> bool
         = fun s ->
